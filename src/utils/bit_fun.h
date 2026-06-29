@@ -9,3 +9,7 @@ inline uint8_t pop_lsb(std::uint64_t& mask) {
     mask &= mask - 1;
     return idx;
 }
+
+inline int popcount(uint64_t x) {
+    return __builtin_popcountll(x);
+}

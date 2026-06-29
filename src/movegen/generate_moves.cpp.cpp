@@ -5,7 +5,7 @@
 #include "../board/board.h"
 #include "../moves/standard/move.h"
 #include "../moves/flag.h"
-#include "../utills/bit_fun.h"
+#include "../utils/bit_fun.h"
 
 namespace {
 

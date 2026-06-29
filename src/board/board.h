@@ -41,6 +41,7 @@ struct Board {
     Board(const std::string fen);
     Board(const Board& other);
     bool GameAbort() const;
+    bool IsEndgame() const;
     bool LegalTest(bool turn) const;
 
     int EvaluatePosition() const;
