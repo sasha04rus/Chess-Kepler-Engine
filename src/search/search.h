@@ -4,6 +4,10 @@
 
 #include "../board/board.h"
 
+#define INFINITY 15000
+#define MATE_VALUE 14000
+#define MATE_THRESHOLD 13000  
+
 template <typename MoveType>
 struct ThreadResult {
     MoveType best_move;

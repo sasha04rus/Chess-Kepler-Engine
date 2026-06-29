@@ -12,9 +12,6 @@
 #include "../tt/tt.h"
 
 #define MAX_DEPTH 30
-#define INFINITY 15000
-#define MATE_VALUE 14000
-#define MATE_THRESHOLD 13000  
 
 struct timespec start_time;
 std::atomic<bool> stop_signal{false};
