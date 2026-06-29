@@ -92,6 +92,6 @@ Bitboard GetKingAttack(std::uint8_t sq);
 Bitboard GetRookAttack(std::uint8_t sq, const RotatedBoard& rotate);
 Bitboard GetBishopAttack(std::uint8_t sq, const RotatedBoard& rotate);
 
-int GenerateMoves(const Board& board, Move possible_moves[218], bool only_captures);
+int GenerateMoves(const Board& board, Move possible_moves[218], bool only_captures = false);
 
 } // namespace movegen
