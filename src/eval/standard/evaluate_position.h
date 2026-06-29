@@ -116,7 +116,7 @@ inline constexpr std::array<std::int8_t, 64> kBlackRookMasks = {
     0, 0, 0, 0, 0, 0, 0, 0,
 };
 
-inline constexpr std::array<std::int8_t, 64> kEvalPassingWhitePawns = {
+inline constexpr std::array<std::uint8_t, 64> kEvalPassingWhitePawns = {
     0, 0, 0, 0, 0, 0, 0, 0,
     50, 50, 50, 50, 50, 50, 50, 50,
     55, 55, 55, 55, 55, 55, 55, 55,
@@ -127,7 +127,7 @@ inline constexpr std::array<std::int8_t, 64> kEvalPassingWhitePawns = {
     0, 0, 0, 0, 0, 0, 0, 0,
 };
 
-inline constexpr std::array<std::int8_t, 64> kEvalPassingBlackPawns = {
+inline constexpr std::array<std::uint8_t, 64> kEvalPassingBlackPawns = {
     0, 0, 0, 0, 0, 0, 0, 0,
     130, 130, 130, 130, 130, 130, 130, 130,
     80, 80, 80, 80, 80, 80, 80, 80,
