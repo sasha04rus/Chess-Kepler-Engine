@@ -2,7 +2,7 @@
 
 #include <iostream>
 
-#include "../utills/bit_fun.h"
+#include "../utils/bit_fun.h"
 
 bool Board::LegalTest(bool local_turn) const {
     const Bitboard& king = bitboards[local_turn][5];
