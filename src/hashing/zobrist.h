@@ -11,4 +11,4 @@ extern std::uint64_t turn;
 
 void Init();
 
-}
+} // namespace zobrist
