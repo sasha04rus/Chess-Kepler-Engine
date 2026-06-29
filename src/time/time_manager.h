@@ -1,0 +1,1 @@
+int CalculateMoveTime(int my_time, int opponent_time, int increment, int moves_done = 0);
