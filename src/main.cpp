@@ -12,6 +12,7 @@
 #include "movegen/generate_moves.h"
 #include "tt/tt.h"
 #include "eval/standard/evaluate_position.h"
+#include "moves/to_string.h"
 
 static const std::string kStartPosFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 

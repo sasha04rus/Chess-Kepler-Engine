@@ -8,6 +8,7 @@
 #include "../hashing/zobrist.h"
 #include "../eval/standard/evaluate_position.h"
 #include "../utils/bit_fun.h"
+#include "../moves/to_string.h"
 
 RotatedBoard MakeRotatedBoards(Bitboard occupied) {
     RotatedBoard rotated;
