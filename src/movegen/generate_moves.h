@@ -274,6 +274,15 @@ constexpr Arr2<Bitboard, 64, 64> MakeDiagH1A8Attacks(const Arr2<std::uint8_t, 64
     return out;
 }
 
+inline constexpr auto compress = MakeCompress();
+inline constexpr auto rank_attacks = MakeRankAttacks();
+inline constexpr auto file_attacks = MakeFileAttacks(rank_attacks);
+inline constexpr auto diaga1h8_attacks = MakeDiagA1H8Attacks(rank_attacks);
+inline constexpr auto diagh1a8_attacks = MakeDiagH1A8Attacks(rank_attacks);
+inline constexpr auto map_to_rotate90 = MakeRotate90Map();
+inline constexpr auto map_to_rotate45 = MakeRotate45Map();
+inline constexpr auto map_to_rotate315 = MakeRotate315Map();
+
 Bitboard GetPawnWhiteLeftCapture(const Bitboard& pawns, const Bitboard& enemy);
 Bitboard GetPawnWhiteRightCapture(const Bitboard& pawns, const Bitboard& enemy);
 Bitboard GetPawnBlackLeftCapture(const Bitboard& pawns, const Bitboard& enemy);

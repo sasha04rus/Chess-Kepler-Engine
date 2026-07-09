@@ -14,7 +14,6 @@ set(SOURCES
     src/hashing/zobrist.cpp
     src/movegen/generate_moves.cpp
     src/movegen/legal_test.cpp
-    src/movegen/masks.cpp
     src/moves/to_string.cpp
     src/search/search.cpp
     src/time/time_manager.cpp
@@ -60,4 +59,5 @@ if (MSVC)
     target_compile_options(ChessKepler PRIVATE /W4)
 else()
     target_compile_options(ChessKepler PRIVATE -Wall -Wextra -Wpedantic)
+    target_link_libraries(ChessKepler PRIVATE atomic)
 endif()

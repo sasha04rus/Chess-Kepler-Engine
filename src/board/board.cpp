@@ -515,8 +515,8 @@ void Board::MakeMove(const std::string& str, Variant variant) {
         break;
     case Variant::kTakeAndReturn: 
         this->MakeMove(move);
-        if (IsReversible(move))
-            last_irreversible = st[ply-1].last_irreversible;
+        // if (IsReversible(move))
+        //     last_irreversible = st[ply-1].last_irreversible;
         if (str.length() > 5) {
             std::string set_str = str.substr(4, 2);
             for (int i = 0; i < 64; i++)
@@ -683,12 +683,12 @@ void Board::UnMakeMove(const Move& move) {
 }
 
 void Board::MakeNullMove() {
-    turn != turn;
+    turn = !turn;
     zobrist_hash ^= zobrist::turn;
 }
 
 void Board::UnMakeNullMove() {
-    turn != turn;
+    turn = !turn;
     zobrist_hash ^= zobrist::turn;
 }
 

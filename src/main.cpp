@@ -98,8 +98,9 @@ int main() {
                 args->multi_pv = 1;
                 if (variant == Variant::kStandard)
                     pthread_create(&threads[i], nullptr, Search<Move>, args);
-                else
-                    pthread_create(&threads[i], nullptr, Search<MoveTar>, args);
+                else 
+                    pthread_create(&threads[i], nullptr, Search<Move>, args);
+                    // pthread_create(&threads[i], nullptr, Search<MoveTar>, args);
             }
             searching = true;
             struct timespec current_time;

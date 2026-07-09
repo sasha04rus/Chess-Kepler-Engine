@@ -27,8 +27,6 @@ bool IsCapture(const Move& move) {
 }
 
 void MoveSort(Move moves[218], int count, const Move* prev_best_move, int ply) {
-    std::uint8_t left = 0;
-    std::uint8_t right = count - 1;
     if (prev_best_move != nullptr) {
         for (int i = 0; i < count; i++) {
             if (moves[i] == *prev_best_move) {

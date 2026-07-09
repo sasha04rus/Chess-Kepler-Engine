@@ -10,6 +10,9 @@
 #include "../moves/tar/move.h"
 #include "../moves/pv.h"
 #include "../tt/tt.h"
+#include "../moves/to_string.h"
+#include "standard/minimax.h"
+#include "tar/minimax.h"
 
 #define MAX_DEPTH 30
 
@@ -29,7 +32,7 @@ bool IsInterrupted() {
     struct timespec current_time;
     clock_gettime(CLOCK_MONOTONIC, &current_time);
     int64_t elapsed_ns = (int64_t)(current_time.tv_sec - start_time.tv_sec) * NANOSECONDS_PER_SECOND + (int64_t)(current_time.tv_nsec - start_time.tv_nsec);
-    return elapsed_ns / NANOSECONDS_PER_MILLISECOND >= (int64_t)movetime;
+    return elapsed_ns / NANOSECONDS_PER_MILLISECOND >= (std::int64_t)movetime;
 }
 
 template <typename MoveType>
@@ -81,4 +84,4 @@ void* Search(void* args) {
 }
 
 template void* Search<Move>(void*);
-template void* Search<MoveTar>(void*);
+// template void* Search<MoveTar>(void*);
