@@ -115,7 +115,7 @@ int Minimax(Board& board, std::uint8_t depth, int alpha, int beta, PrincipalVari
         return eval;
     }
 
-    if (depth >= 3 && !board.LegalTest(!board.turn) && !board.IsEndgame()) {
+    if (depth >= 3 && !board.LegalTest(board.turn) && !board.IsEndgame()) {
         int R = 2 + depth / 4;
         board.MakeNullMove();
         PrincipalVariation<Move> dummy;
