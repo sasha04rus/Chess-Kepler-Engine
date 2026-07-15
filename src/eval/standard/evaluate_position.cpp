@@ -2,7 +2,7 @@
 
 #include <algorithm>
 
-#include "../..//movegen/generate_moves.h"
+#include "../../movegen/generate_moves.h"
 #include "../../utils/bit_fun.h"
 
 namespace {
