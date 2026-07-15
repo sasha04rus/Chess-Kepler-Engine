@@ -116,7 +116,7 @@ constexpr Matrix<std::uint8_t, 64, 64> MakeRankAttacks() {
     return out;
 }
 
-constexpr Matrix<Bitboard, 64, 64> MakeFileAttacks(const Matrix<std::uint8_t, 64, 64>& rank) {
+constexpr Matrix<Bitboard, 64, 64> MakeFileAttacks(const Matrix<std::uint8_t, 64, 64>& rank_attacks) {
     Matrix<Bitboard, 64, 64> out{};
     for (int piece_pos = 0; piece_pos < 8; piece_pos++) {
         for (std::uint8_t rank_mask = 0; rank_mask < 64; rank_mask++) {
@@ -170,7 +170,7 @@ constexpr Arr<Bitboard, 64> MakeRotate315Map() {
     return out;
 }
 
-constexpr Matrix<Bitboard, 64, 64> MakeDiagA1H8Attacks(const Matrix<std::uint8_t, 64, 64>& rank) {
+constexpr Matrix<Bitboard, 64, 64> MakeDiagA1H8Attacks(const Matrix<std::uint8_t, 64, 64>& rank_attacks) {
     Matrix<Bitboard, 64, 64> out{};
     for (int sq = 0; sq < 64; sq++) {
         int rank = sq / 8;
@@ -203,7 +203,7 @@ constexpr Matrix<Bitboard, 64, 64> MakeDiagA1H8Attacks(const Matrix<std::uint8_t
     return out;
 }
 
-constexpr Matrix<Bitboard, 64, 64> MakeDiagH1A8Attacks(const Matrix<std::uint8_t, 64, 64>& rank) {
+constexpr Matrix<Bitboard, 64, 64> MakeDiagH1A8Attacks(const Matrix<std::uint8_t, 64, 64>& rank_attacks) {
     Matrix<Bitboard, 64, 64> out{};
     for (int sq = 0; sq < 64; sq++) {
         int rank = sq / 8;
