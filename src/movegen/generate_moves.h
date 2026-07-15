@@ -12,9 +12,9 @@ template <typename T, std::size_t N>
 using Arr = std::array<T, N>;
 
 template <typename T, std::size_t N, std::size_t M>
-using Arr2 = std::array<std::array<T, M>, N>;
+using Matrix = std::array<std::array<T, M>, N>;
 
-inline constexpr Arr<Byte, 15> kDiagLengthPrefSum = {0, 1, 3, 6, 10, 15, 21, 28, 36, 43, 49, 54, 58, 61, 63 };
+inline constexpr Arr<Byte, 15> kDiagLengthPrefSum = {0, 1, 3, 6, 10, 15, 21, 28, 36, 43, 49, 54, 58, 61, 63};
 
 inline constexpr Arr<int, 64> diag_h1a8 = {
     0,1,2,3,4,5,6,7,
@@ -65,15 +65,6 @@ constexpr Bitboard kMasksForKnight[64] = {
     4679521487814656ULL, 9077567998918656ULL
 };
 
-constexpr Arr<Byte, 256> MakeCompress();
-constexpr Arr2<Byte, 64, 64> MakeRankAttacks();
-constexpr Arr2<Bitboard, 64, 64> MakeFileAttacks(const Arr2<Byte, 64, 64>& rank);
-constexpr Arr2<Bitboard, 64, 64> MakeDiagA1H8Attacks(const Arr2<Byte, 64, 64>& rank);
-constexpr Arr2<Bitboard, 64, 64> MakeDiagH1A8Attacks(const Arr2<Byte, 64, 64>& rank);
-constexpr Arr<Bitboard, 64> MakeRotate90Map();
-constexpr Arr<Bitboard, 64> MakeRotate45Map();
-constexpr Arr<Bitboard, 64> MakeRotate315Map();
-
 constexpr std::uint8_t MinU8(std::uint8_t a, std::uint8_t b) {
     return a < b ? a : b;
 }
@@ -88,73 +79,63 @@ constexpr int MaxInt(int a, int b) {
 
 constexpr Arr<std::uint8_t, 256> MakeCompress() {
     Arr<std::uint8_t, 256> out{};
-    for (std::uint16_t mask = 0; mask < 256; ++mask) {
-        out[mask] = static_cast<std::uint8_t>((mask >> 1) & 0x3F);
-    }
+    for (std::uint16_t mask = 0; mask < 256; mask++)
+        out[mask] = (0x3F & ((uint8_t)mask >> 1));
     return out;
 }
 
-constexpr Arr2<std::uint8_t, 64, 64> MakeRankAttacks() {
-    Arr2<std::uint8_t, 64, 64> out{};
-
-    for (int piece_pos = 0; piece_pos < 8; ++piece_pos) {
-        for (std::uint8_t rank_mask = 0; rank_mask < 64; ++rank_mask) {
+constexpr Matrix<std::uint8_t, 64, 64> MakeRankAttacks() {
+    Matrix<std::uint8_t, 64, 64> out{};
+    for (int piece_pos = 0; piece_pos < 8; piece_pos++) {
+        for (std::uint8_t rank_mask = 0; rank_mask < 64; rank_mask++) {
             std::uint8_t mask = 255;
-            mask &= static_cast<std::uint8_t>(~((std::uint8_t)1 << piece_pos));
-
+            mask &= ~((std::uint8_t)1 << piece_pos);
             bool barrier = false;
-            for (int i = piece_pos - 1; i >= 0; --i) {
-                if (barrier) {
-                    mask &= static_cast<std::uint8_t>(~(std::uint8_t{1} << i));
-                }
-                if (((rank_mask << 1) & ((std::uint8_t)1 << i)) != 0) {
+            int i = piece_pos - 1;
+            while (i >= 0) {
+                if (barrier)
+                    mask &= ~((std::uint8_t)1 << i);
+                if (((rank_mask << 1) & (std::uint8_t)1 << i))
                     barrier = true;
-                }
+                i--;
             }
-
             barrier = false;
-            for (int i = piece_pos + 1; i < 8; ++i) {
-                if (barrier) {
-                    mask &= static_cast<std::uint8_t>(~((std::uint8_t)1 << i));
-                }
-                if (((rank_mask << 1) & ((std::uint8_t)1 << i)) != 0) {
+            i = piece_pos + 1;
+            while (i < 8) {
+                if (barrier)
+                    mask &= ~((std::uint8_t)1 << i);
+                if (((rank_mask << 1) & (std::uint8_t)1 << i))
                     barrier = true;
-                }
+                i++;
             }
-
-            for (int rank = 0; rank < 8; ++rank) {
-                out[piece_pos + 8 * rank][rank_mask] = mask;
-            }
+            for (int i = 0; i < 8; i++)
+                out[piece_pos + 8 * i][rank_mask] = mask;
         }
     }
 
     return out;
 }
 
-constexpr Arr2<Bitboard, 64, 64> MakeFileAttacks(const Arr2<std::uint8_t, 64, 64>& rank) {
-    Arr2<Bitboard, 64, 64> out{};
-
-    for (int piece_pos = 0; piece_pos < 8; ++piece_pos) {
-        for (std::uint8_t rank_mask = 0; rank_mask < 64; ++rank_mask) {
-            std::uint8_t mask = rank[piece_pos][rank_mask];
-            for (int file = 0; file < 8; ++file) {
+constexpr Matrix<Bitboard, 64, 64> MakeFileAttacks(const Matrix<std::uint8_t, 64, 64>& rank) {
+    Matrix<Bitboard, 64, 64> out{};
+    for (int piece_pos = 0; piece_pos < 8; piece_pos++) {
+        for (std::uint8_t rank_mask = 0; rank_mask < 64; rank_mask++) {
+            std::uint8_t mask = rank_attacks[piece_pos][rank_mask];
+            for (int file = 0; file < 8; file++) {
                 Bitboard vertical_attacks = 0;
-                for (int j = 0; j < 8; ++j) {
-                    if ((mask & (1u << j)) != 0) {
-                        vertical_attacks |= ((Bitboard)1 << (j * 8 + file));
-                    }
-                }
+                for (int j = 0; j < 8; j++)
+                    if (mask & (1 << j))
+                        vertical_attacks |= (1ULL << (j * 8 + file));
                 out[piece_pos * 8 + file][rank_mask] = vertical_attacks;
             }
         }
     }
-
     return out;
 }
 
 constexpr Arr<Bitboard, 64> MakeRotate90Map() {
     Arr<Bitboard, 64> out{};
-    for (int sq = 0; sq < 64; ++sq) {
+    for (int sq = 0; sq < 64; sq++) {
         int rank = sq / 8;
         int file = sq % 8;
         int new_sq = file * 8 + rank;
@@ -165,7 +146,7 @@ constexpr Arr<Bitboard, 64> MakeRotate90Map() {
 
 constexpr Arr<Bitboard, 64> MakeRotate45Map() {
     Arr<Bitboard, 64> out{};
-    for (int sq = 0; sq < 64; ++sq) {
+    for (int sq = 0; sq < 64; sq++) {
         int rank = sq / 8;
         int file = sq % 8;
         int diag_sum = rank + file;
@@ -178,7 +159,7 @@ constexpr Arr<Bitboard, 64> MakeRotate45Map() {
 
 constexpr Arr<Bitboard, 64> MakeRotate315Map() {
     Arr<Bitboard, 64> out{};
-    for (int sq = 0; sq < 64; ++sq) {
+    for (int sq = 0; sq < 64; sq++) {
         int rank = sq / 8;
         int file = sq % 8;
         int diag_diff = rank - file + 7;
@@ -189,88 +170,69 @@ constexpr Arr<Bitboard, 64> MakeRotate315Map() {
     return out;
 }
 
-constexpr Arr2<Bitboard, 64, 64> MakeDiagA1H8Attacks(const Arr2<std::uint8_t, 64, 64>& rank) {
-    Arr2<Bitboard, 64, 64> out{};
-
-    for (int sq = 0; sq < 64; ++sq) {
-        int rank_idx = sq / 8;
+constexpr Matrix<Bitboard, 64, 64> MakeDiagA1H8Attacks(const Matrix<std::uint8_t, 64, 64>& rank) {
+    Matrix<Bitboard, 64, 64> out{};
+    for (int sq = 0; sq < 64; sq++) {
+        int rank = sq / 8;
         int file = sq % 8;
-        int sum = rank_idx + file;
-        int start_rank = MaxInt(0, sum - 7);
-        int start_file = sum - start_rank;
-
-        std::array<int, 8> diag_squares{};
+        int sum = rank + file;
+        int start_rank = std::max(0, sum - 7);
+        int start_file = sum - start_rank; 
+        int diag_squares[8] = {0};
         int len = 0;
         int piece_pos = -1;
         int r = start_rank;
         int f = start_file;
-
         while (r < 8 && f >= 0) {
             int real_sq = r * 8 + f;
             diag_squares[len] = real_sq;
-            if (real_sq == sq) {
-                piece_pos = len;
-            }
-            ++r;
-            --f;
-            ++len;
+            if (real_sq == sq) piece_pos = len;
+            r++;
+            f--;
+            len++;
         }
-
-        for (int state = 0; state < 64; ++state) {
-            std::uint8_t mask = rank[piece_pos][state];
+        for (int state = 0; state < 64; state++) {
+            uint8_t mask = rank_attacks[piece_pos][state];
             Bitboard attacks = 0;
-            for (int i = 0; i < len; ++i) {
-                if ((mask & (1u << i)) != 0) {
-                    attacks |= ((Bitboard)1 << diag_squares[i]);
-                }
-            }
+            for (int i = 0; i < len; i++)
+                if (mask & (1 << i))
+                    attacks |= (1ULL << diag_squares[i]);
             out[sq][state] = attacks;
         }
     }
-
     return out;
 }
 
-constexpr Arr2<Bitboard, 64, 64> MakeDiagH1A8Attacks(const Arr2<std::uint8_t, 64, 64>& rank) {
-    Arr2<Bitboard, 64, 64> out{};
-
-    for (int sq = 0; sq < 64; ++sq) {
-        int rank_idx = sq / 8;
+constexpr Matrix<Bitboard, 64, 64> MakeDiagH1A8Attacks(const Matrix<std::uint8_t, 64, 64>& rank) {
+    Matrix<Bitboard, 64, 64> out{};
+    for (int sq = 0; sq < 64; sq++) {
+        int rank = sq / 8;
         int file = sq % 8;
-        int diff = rank_idx - file;
-
-        int start_rank = MaxInt(0, diff);
-        int start_file = start_rank - diff;
-
-        std::array<int, 8> diag_squares{};
+        int diff = rank - file; 
+        int start_rank = std::max(0, diff);
+        int start_file = start_rank - diff; 
+        int diag_squares[8] = {0};
         int len = 0;
         int piece_pos = -1;
         int r = start_rank;
         int f = start_file;
-
         while (r < 8 && f < 8) {
             int real_sq = r * 8 + f;
             diag_squares[len] = real_sq;
-            if (real_sq == sq) {
-                piece_pos = len;
-            }
-            ++r;
-            ++f;
-            ++len;
+            if (real_sq == sq) piece_pos = len;
+            r++;
+            f++;
+            len++;
         }
-
-        for (int state = 0; state < 64; ++state) {
-            std::uint8_t mask = rank[piece_pos][state];
+        for (int state = 0; state < 64; state++) {
+            uint8_t mask = rank_attacks[piece_pos][state];
             Bitboard attacks = 0;
-            for (int i = 0; i < len; ++i) {
-                if ((mask & (1u << i)) != 0) {
-                    attacks |= ((Bitboard)1 << diag_squares[i]);
-                }
-            }
+            for (int i = 0; i < len; i++)
+                if (mask & (1 << i))
+                    attacks |= (1ULL << diag_squares[i]);
             out[sq][state] = attacks;
         }
     }
-
     return out;
 }
 
