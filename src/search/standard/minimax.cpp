@@ -1,3 +1,5 @@
+#include "minimax.h"
+
 #include <cstring>
 #include <algorithm>
 
