@@ -8,8 +8,6 @@
 #include "../../eval/standard/evaluate_position.h"
 #include "../search.h"
 
-#define MAX_MOVES 218
-
 namespace {
 
 bool IsCapture(const Move& move) {
