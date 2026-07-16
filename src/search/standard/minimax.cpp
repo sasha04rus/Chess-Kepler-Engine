@@ -84,8 +84,7 @@ int MinimaxCap(Board& board, int alpha, int beta, std::uint64_t& nodes) {
 }
 
 int Minimax(Board& board, std::uint8_t depth, int alpha, int beta, PrincipalVariation<Move>& pv, std::uint64_t& nodes, int ply) {
-    if (IsInterrupted()) return 0;
-
+    if ((nodes & (1024 - 1)) && IsInterrupted()) return 0;
     if (board.GameAbort()) return 0;
 
     TTEntry entry = tt[board.zobrist_hash & (TT_SIZE - 1)].load(std::memory_order_relaxed);
