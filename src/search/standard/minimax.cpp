@@ -91,14 +91,9 @@ int Minimax(Board& board, std::uint8_t depth, int alpha, int beta, PrincipalVari
     }
     if (board.GameAbort()) return 0;
 
-    TTEntry entry;
-    if (ProbeTT(board.zobrist_hash, entry)) {
-        if (abs(entry.score) > MATE_THRESHOLD) {
-            if (entry.depth == depth) {
-                if (entry.flag == EXACT) return entry.score;
-            }
-        }
-
+    TTEntry entry{};
+    const bool tt_hit = ProbeTT(board.zobrist_hash, entry);
+    if (tt_hit && ply > 0 && entry.depth >= depth) {
         if (entry.flag == EXACT)
             return entry.score;
 
