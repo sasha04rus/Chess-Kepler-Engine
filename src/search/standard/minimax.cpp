@@ -50,6 +50,7 @@ void MoveSort(Move moves[218], int count, const Move* prev_best_move, int ply) {
 }
 
 int MinimaxCap(Board& board, int alpha, int beta, std::uint64_t& nodes) {
+    if ((nodes & 1023ULL) == 0 && IsInterrupted()) return 0;
     int eval = board.EvaluatePosition();
     if (board.turn) {
         if (eval >= beta) return beta;
@@ -84,7 +85,10 @@ int MinimaxCap(Board& board, int alpha, int beta, std::uint64_t& nodes) {
 }
 
 int Minimax(Board& board, std::uint8_t depth, int alpha, int beta, PrincipalVariation<Move>& pv, std::uint64_t& nodes, int ply) {
-    if ((nodes & (1024 - 1)) && IsInterrupted()) return 0;
+    if ((nodes & 1023ULL) == 0 && IsInterrupted()) {
+        pv.Clear();
+        return 0;
+    }
     if (board.GameAbort()) return 0;
 
     TTEntry entry = tt[board.zobrist_hash & (TT_SIZE - 1)].load(std::memory_order_relaxed);
@@ -154,6 +158,10 @@ int Minimax(Board& board, std::uint8_t depth, int alpha, int beta, PrincipalVari
             } else 
                 evaluation = Minimax(board, depth - 1, best_eval, beta, child_pv, nodes, ply + 1);
             board.UnMakeMove(possible_moves[i]);
+            if (IsInterrupted()) {
+                pv.Clear();
+                return 0;
+            }
             if (evaluation >= beta) {
                 if (!IsCapture(possible_moves[i])) {
                     killers[ply][1] = killers[ply][0];
@@ -166,7 +174,7 @@ int Minimax(Board& board, std::uint8_t depth, int alpha, int beta, PrincipalVari
                 new_entry.score = beta;
                 new_entry.flag = LOWERBOUND;
                 new_entry.best_move = possible_moves[i];
-                tt[board.zobrist_hash & (TT_SIZE - 1)].store(new_entry, std::memory_order_relaxed);
+                StoreTT(new_entry);
                 return beta;
             } else if (evaluation > best_eval) {
                 best_eval = evaluation;
@@ -183,7 +191,7 @@ int Minimax(Board& board, std::uint8_t depth, int alpha, int beta, PrincipalVari
             new_entry.score = eval;          
             new_entry.flag = EXACT;          
             new_entry.best_move = NO_MOVE;
-            tt[board.zobrist_hash & (TT_SIZE - 1)].store(new_entry, std::memory_order_relaxed);
+            StoreTT(new_entry);
             return eval;
         } else if (!(best_move == NO_MOVE))
             pv.Set(best_move, best_pv);
@@ -202,7 +210,7 @@ int Minimax(Board& board, std::uint8_t depth, int alpha, int beta, PrincipalVari
             new_entry.flag = LOWERBOUND;
         else
             new_entry.flag = EXACT;
-        tt[board.zobrist_hash & (TT_SIZE - 1)].store(new_entry, std::memory_order_relaxed);
+        StoreTT(new_entry);
         return best_eval;
     } else {
         int best_eval = beta;
@@ -223,6 +231,10 @@ int Minimax(Board& board, std::uint8_t depth, int alpha, int beta, PrincipalVari
             } else
                 evaluation = Minimax(board, depth - 1, alpha, best_eval, child_pv, nodes, ply + 1);
             board.UnMakeMove(possible_moves[i]);
+            if (IsInterrupted()) {
+                pv.Clear();
+                return 0;
+            }
             if (evaluation <= alpha) {
                 if (!IsCapture(possible_moves[i])) {
                     killers[ply][1] = killers[ply][0];
@@ -235,7 +247,7 @@ int Minimax(Board& board, std::uint8_t depth, int alpha, int beta, PrincipalVari
                 new_entry.score = alpha;
                 new_entry.flag = UPPERBOUND;
                 new_entry.best_move = possible_moves[i];
-                tt[board.zobrist_hash & (TT_SIZE - 1)].store(new_entry, std::memory_order_relaxed);
+                StoreTT(new_entry);
                 return alpha;
             } else if (evaluation < best_eval) {
                 best_eval = evaluation;
@@ -252,7 +264,7 @@ int Minimax(Board& board, std::uint8_t depth, int alpha, int beta, PrincipalVari
             new_entry.score = eval;          
             new_entry.flag = EXACT;          
             new_entry.best_move = NO_MOVE;
-            tt[board.zobrist_hash & (TT_SIZE - 1)].store(new_entry, std::memory_order_relaxed);
+            StoreTT(new_entry);
             return eval;
         } else if (!(best_move == NO_MOVE)) 
             pv.Set(best_move, best_pv);
@@ -271,7 +283,7 @@ int Minimax(Board& board, std::uint8_t depth, int alpha, int beta, PrincipalVari
             new_entry.flag = UPPERBOUND;
         else
             new_entry.flag = EXACT;
-        tt[board.zobrist_hash & (TT_SIZE - 1)].store(new_entry, std::memory_order_relaxed);
+        StoreTT(new_entry);
         return best_eval;
     }
 }
