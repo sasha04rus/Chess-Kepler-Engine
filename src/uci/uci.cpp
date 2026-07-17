@@ -101,10 +101,9 @@ Uci::Uci() {
     handlers_["stop"] = [this](const std::vector<std::string>& args, std::ostream& out) {
         if (!args.empty()) return;
         if (searching) {
-            stop_signal = true;
+            stop_signal.store(true, std::memory_order_relaxed);
             pthread_join(search_thread_, nullptr);
             searching = false;
-            out << bestmove;
         }
         board_ptr_.reset();
     };

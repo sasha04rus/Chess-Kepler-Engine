@@ -22,7 +22,6 @@ public:
 private:
     std::unordered_map<std::string, Handler> handlers_;
     std::unique_ptr<Board> board_ptr_;
-    int movetime = 0;
     int depth_ = MAX_DEPTH;
     int threads_ = DEFAULT_NUMBER_OF_THREADS;
     int multi_pv_ = DEFAULT_MULTI_PV;
