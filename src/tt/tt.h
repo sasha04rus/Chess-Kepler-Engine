@@ -1,31 +1,36 @@
+#pragma once
+
 #include <atomic>
 #include <cstdint>
 
-#include "../moves//standard/move.h"
+#include "../moves/standard/move.h"
 
 #define MAX_PLY 30
 
-constexpr int TT_SIZE = 1 << 23;
+constexpr std::size_t TT_SIZE = 1ULL << 23;
 
-enum TTFlag { EXACT, LOWERBOUND, UPPERBOUND };
+enum TTFlag : std::uint8_t {EXACT, LOWERBOUND, UPPERBOUND};
 
 struct TTEntry {
-  std::uint64_t key = 0;
-  int depth = -1;
-  int score = 0;
-  TTFlag flag = EXACT;
-  Move best_move = NO_MOVE;
+    std::uint64_t key = 0;
+    int depth = -1;
+    int score = 0;
+    TTFlag flag = EXACT;
+    Move best_move = NO_MOVE;
 };
 
-extern std::atomic<TTEntry> tt[TT_SIZE];
+struct TTSlot {
+    std::atomic<std::uint64_t> verification{0};
+    std::atomic<std::uint64_t> data{0};
+};
+
+static_assert(std::atomic<std::uint64_t>::is_always_lock_free, "64-bit atomics are not lock-free on this platform");
+
+extern TTSlot tt[TT_SIZE];
 extern thread_local Move killers[MAX_PLY][2];
+
+bool ProbeTT(std::uint64_t key, TTEntry& entry);
+void StoreTT(const TTEntry& entry);
 
 void ClearKiller();
 void ClearTT();
-
-inline void StoreTT(const TTEntry& new_entry) {
-    auto& slot = tt[new_entry.key & (TT_SIZE - 1)];
-    TTEntry old_entry = slot.load(std::memory_order_relaxed);
-    if (old_entry.key == 0 || old_entry.key != new_entry.key || new_entry.depth >= old_entry.depth || new_entry.flag == EXACT)
-        slot.store(new_entry, std::memory_order_relaxed);
-}
