@@ -91,9 +91,8 @@ int Minimax(Board& board, std::uint8_t depth, int alpha, int beta, PrincipalVari
     }
     if (board.GameAbort()) return 0;
 
-    TTEntry entry = tt[board.zobrist_hash & (TT_SIZE - 1)].load(std::memory_order_relaxed);
-
-    if (entry.key == board.zobrist_hash && entry.depth >= depth) {
+    TTEntry entry;
+    if (ProbeTT(board.zobrist_hash, entry)) {
         if (abs(entry.score) > MATE_THRESHOLD) {
             if (entry.depth == depth) {
                 if (entry.flag == EXACT) return entry.score;
