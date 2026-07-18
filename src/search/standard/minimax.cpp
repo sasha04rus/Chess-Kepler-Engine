@@ -126,7 +126,7 @@ int Minimax(Board& board, std::uint8_t depth, int alpha, int beta, PrincipalVari
     Move possible_moves[MAX_MOVES];
     int move_count = movegen::GenerateMoves(board, possible_moves);
 
-    if (entry.key == board.zobrist_hash && !(entry.best_move == NO_MOVE))
+    if (tt_hit && !(entry.best_move == NO_MOVE))
         MoveSort(possible_moves, move_count, &entry.best_move, ply);
     else
         MoveSort(possible_moves, move_count, nullptr, ply);
