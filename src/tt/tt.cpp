@@ -58,12 +58,15 @@ void UnpackEntryData(std::uint64_t key, std::uint64_t data, TTEntry& entry) {
 
 bool ProbeTT(std::uint64_t key, TTEntry& entry) {
     TTSlot& slot = tt[key & (TT_SIZE - 1)];
-    const std::uint64_t verification = slot.verification.load(std::memory_order_acquire);
-    if (verification == 0)
+    const std::uint64_t verification_before =
+        slot.verification.load(std::memory_order_acquire);
+    if (verification_before == 0)
         return false;
-    const std::uint64_t data =
-        slot.data.load(std::memory_order_relaxed);
-    if ((verification ^ data) != key)
+    const std::uint64_t data = slot.data.load(std::memory_order_relaxed);
+    const std::uint64_t verification_after = slot.verification.load(std::memory_order_acquire);
+    if (verification_before != verification_after)
+        return false;
+    if ((verification_before ^ data) != key)
         return false;
     UnpackEntryData(key, data, entry);
     return true;
