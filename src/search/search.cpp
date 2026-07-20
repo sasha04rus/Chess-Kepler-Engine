@@ -171,8 +171,11 @@ void* Search(void* raw_args) {
         shared.nodes.fetch_add(result.nodes, std::memory_order_relaxed);
         if (!result.valid)
             break;
-        if (result.pv.length == 0)
-            result.pv = ExtractPvFromTT<MoveType>(root_board, depth);
+        PrincipalVariation<MoveType> tt_pv = ExtractPvFromTT<MoveType>(root_board, depth);
+        if (result.pv.length == 0) {
+            result.pv = tt_pv;
+        } else if (tt_pv.length > result.pv.length && tt_pv.moves[0] == result.pv.moves[0])
+            result.pv = tt_pv;
         if (result.pv.length == 0)
             continue;
 
