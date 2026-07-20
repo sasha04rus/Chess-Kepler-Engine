@@ -1,39 +1,48 @@
 #pragma once
 
 #include <atomic>
+#include <cstdint>
+#include <string>
 
 #include "../board/board.h"
+#include "../moves/pv.h"
 
-#define INFINITY 15000
 #define MATE_VALUE 14000
 #define MATE_THRESHOLD 13000  
 
-template <typename MoveType>
-struct ThreadResult {
-    MoveType best_move;
-    int depth = 0;
-    int score = 0;
-    bool finished = false;
+extern struct timespec start_time;
+extern std::atomic<bool> stop_signal;
+extern std::atomic<bool> searching;
+extern std::string bestmove;
+extern int movetime;
+
+struct SearchArgs {
+    Board board;
+    int max_depth;
+    int threads;
+    std::uint8_t multi_pv;
 };
 
 template <typename MoveType>
-struct SearchArgs {
-    Board board;
-    std::uint8_t multi_pv = 1;
-    int thread_id = 0;
-    ThreadResult<MoveType>* result = nullptr;
+struct SearchResult {
+    int evaluation;
+    PrincipalVariation<MoveType> pv;
+    std::uint64_t nodes;
+    bool valid = false;
+};
 
-    SearchArgs(const Board& _board) : board(_board) {}
+template <typename MoveType>
+struct RootResult {
+    MoveType root_move;
+    int evaluation;
+    PrincipalVariation<MoveType> pv;
+    std::uint64_t nodes;
+    bool valid = false;
 };
 
 template <typename MoveType>
 void* Search(void* args);
 
-extern struct timespec start_time;
-extern std::atomic<bool> stop_signal;
-extern std::atomic<bool> searching;
-extern int threads;
-extern int movetime;
-extern int move_number;
+std::uint64_t GetElapsedMilliseconds();
 
 bool IsInterrupted();
