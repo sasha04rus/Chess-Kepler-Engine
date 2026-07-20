@@ -11,10 +11,6 @@ inline bool Check2Bits(const Bitboard& x) {
     return x & (x - 1);
 }
 
-inline bool Check3Bits(const Bitboard& x) {
-    return x & (x - 1) & (x - 2);
-}
-
 bool IsOpening(const Board& board) {
     int count = popcount(board.rotated.occupied);
     return (count <= 28) ? false : true;
@@ -29,8 +25,8 @@ int Board::EvaluatePosition() const {
     int mobility = 0;
     Bitboard mask;
     Bitboard pieces;
-    Bitboard white;
-    Bitboard black;
+    Bitboard white = bitboards[0][5];
+    Bitboard black = bitboards[1][5];
     std::uint8_t square;
     const Bitboard& white_pawns = bitboards[0][0];
     const Bitboard& black_pawns = bitboards[1][0];
@@ -202,14 +198,18 @@ int Board::EvaluatePosition() const {
         mobility = 0;
 
         if (popcount(bitboards[0][2]) == 1 && popcount(bitboards[1][2]) == 1) { // Разноцветные слоны
-            if ((((bitboards[0][2] | bitboards[1][2]) & kWhiteSquares) == 0) || ((bitboards[0][2] | bitboards[1][2]) & kBlackSquares) == 0){
-                return (eval > 100) ? (eval - 100) : ((eval < 100) ? (eval + 100) : 0);
+            if (((bitboards[0][2] & kWhiteSquares) != 0) != ((bitboards[1][2] & kWhiteSquares) != 0)) {
+                if (eval > 100)
+                    eval -= 100;
+                else if (eval < -100)
+                    eval += 100;
+                else eval = 0;
             }
         }
-
+        
     } else {
-        Bitboard white_attack = 0;
-        Bitboard black_attack = 0;
+        Bitboard white_attack = ((white_pawns << 9) & 0xFEFEFEFEFEFEFEFEULL) | ((white_pawns << 7) & 0x7F7F7F7F7F7F7F7FULL);
+        Bitboard black_attack = ((black_pawns >> 9) & 0x7F7F7F7F7F7F7F7FULL) | ((black_pawns >> 7) & 0xFEFEFEFEFEFEFEFEULL);
         Bitboard attack;
         mask = white_pawns & 0x1818000000; // Центральные пешки в миттельшпиле
         eval += (mask != 0) ? (Check2Bits(mask) ? 50 : 25) : 0;
