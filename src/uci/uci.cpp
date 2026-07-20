@@ -25,6 +25,12 @@ Uci::Uci() {
         out << "readyok" << std::endl;
     };
 
+    handlers_["ucinewgame"] = [](const std::vector<std::string>& args, std::ostream& out) {
+        if (!args.empty())
+            return;
+        ClearTT();
+    };
+
     handlers_["setoption"] = [this](const std::vector<std::string>& args, std::ostream& out) {
         if (args.size() != 4) return;
         if ((args[0] != "name") || (args[2] != "value")) return;
@@ -89,7 +95,6 @@ Uci::Uci() {
         } catch(...) { return; }
         stop_signal = false;
         searching = true;
-        ClearTT();
         clock_gettime(CLOCK_MONOTONIC, &start_time);
         SearchArgs* sa = new SearchArgs{*board_ptr_, depth_, threads_, multi_pv_};
         if (variant_ == Variant::kStandard)
