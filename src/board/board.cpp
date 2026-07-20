@@ -171,7 +171,7 @@ Board::Board(const Board& other) {
 }
 
 bool Board::GameAbort() const {
-    if ((ply - last_irreversible) >= 50)
+    if ((ply - last_irreversible) >= 100)
         return true;
 
     std::uint8_t repeat_count = 0;
