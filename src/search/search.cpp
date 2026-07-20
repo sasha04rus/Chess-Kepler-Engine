@@ -127,6 +127,7 @@ void* LazyHelper(void* raw_args) {
 
         SearchResult<MoveType> result = SearchPv<MoveType>(*(args->board), target_depth);
         args->shared->nodes.fetch_add(result.nodes, std::memory_order_relaxed);
+        if (!result.valid) break;
     }
 
     local_stop_signal = nullptr;
