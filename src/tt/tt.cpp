@@ -1,5 +1,7 @@
 #include "tt.h"
 
+#include <algorithm>
+
 TTSlot tt[TT_SIZE];
 
 thread_local Move killers[MAX_PLY][2];
@@ -34,8 +36,8 @@ Move UnpackMove(std::uint64_t packed) {
 }
 
 std::uint64_t PackEntryData(const TTEntry& entry) {
-    int depth = entry.depth;
-    const std::uint16_t packed_score = static_cast<std::uint16_t>(entry.score);
+    const int depth = std::clamp(entry.depth, 0, 255);
+    const std::uint16_t packed_score = static_cast<std::uint16_t>(static_cast<std::int16_t>(entry.score));
     std::uint64_t data = PackMove(entry.best_move);
     data |= static_cast<std::uint64_t>(packed_score) << SCORE_SHIFT;
     data |= static_cast<std::uint64_t>(static_cast<std::uint8_t>(depth)) << DEPTH_SHIFT;
@@ -68,6 +70,14 @@ bool ProbeTT(std::uint64_t key, TTEntry& entry) {
 }
 
 void StoreTT(const TTEntry& entry) {
+    TTEntry old_entry{};
+    if (ProbeTT(entry.key, old_entry)) {
+        if (old_entry.depth > entry.depth)
+            return;
+        if (old_entry.depth == entry.depth && old_entry.flag == EXACT && entry.flag != EXACT)
+            return;
+    }
+
     TTSlot& slot = tt[entry.key & (TT_SIZE - 1)];
     const std::uint64_t data = PackEntryData(entry);
     slot.data.store(data, std::memory_order_relaxed);
