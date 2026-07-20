@@ -683,6 +683,10 @@ void Board::UnMakeMove(const Move& move) {
 }
 
 void Board::MakeNullMove() {
+    null_en_passant = en_passant;
+    if (en_passant != 0)
+        zobrist_hash ^= zobrist::en_passant[zobrist::ep_square_to_index[en_passant]];
+    en_passant = 0;
     turn = !turn;
     zobrist_hash ^= zobrist::turn;
 }
@@ -690,6 +694,9 @@ void Board::MakeNullMove() {
 void Board::UnMakeNullMove() {
     turn = !turn;
     zobrist_hash ^= zobrist::turn;
+    en_passant = null_en_passant;
+    if (en_passant != 0)
+        zobrist_hash ^= zobrist::en_passant[zobrist::ep_square_to_index[en_passant]];
 }
 
 void Board::SetPiece(std::uint8_t piece, std::uint8_t square) {
