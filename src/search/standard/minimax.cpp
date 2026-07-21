@@ -26,16 +26,34 @@ bool IsCapture(const Move& move) {
     }
 }
 
+int ScoreToTT(int score, int ply) {
+    if (score > MATE_THRESHOLD)
+        return score + ply;
+    if (score < -MATE_THRESHOLD)
+        return score - ply;
+    return score;
+}
+
+int ScoreFromTT(int score, int ply) {
+    if (score > MATE_THRESHOLD)
+        return score - ply;
+    if (score < -MATE_THRESHOLD)
+        return score + ply;
+    return score;
+}
+
 void MoveSort(Move moves[218], int count, const Move* prev_best_move, int ply) {
+    bool tt_move_found = false;
     if (prev_best_move != nullptr) {
         for (int i = 0; i < count; i++) {
             if (moves[i] == *prev_best_move) {
                 std::swap(moves[0], moves[i]);
+                tt_move_found = true;
                 break;
             }
         }
     }
-    Move* start = (prev_best_move == nullptr) ? moves : moves + 1;
+    Move* start = tt_move_found ? moves + 1 : moves;
     Move* end = moves + count;
     Move* good_end = std::partition(start, end, IsCapture);
     std::sort(start, good_end, [](const Move& a, const Move& b) {
@@ -84,7 +102,7 @@ int MinimaxCap(Board& board, int alpha, int beta, std::uint64_t& nodes) {
 
 }
 
-int Minimax(Board& board, std::uint8_t depth, int alpha, int beta, PrincipalVariation<Move>& pv, std::uint64_t& nodes, int ply) {
+int Minimax(Board& board, std::uint8_t depth, int alpha, int beta, PrincipalVariation<Move>& pv, std::uint64_t& nodes, int ply, bool allow_null) {
     if ((nodes & 1023ULL) == 0 && IsInterrupted()) {
         pv.Clear();
         return 0;
@@ -94,14 +112,15 @@ int Minimax(Board& board, std::uint8_t depth, int alpha, int beta, PrincipalVari
     TTEntry entry{};
     const bool tt_hit = ProbeTT(board.zobrist_hash, entry);
     if (tt_hit && ply > 0 && entry.depth >= depth) {
+        const int tt_score = ScoreFromTT(entry.score, ply);
         if (entry.flag == EXACT)
-            return entry.score;
+            return tt_score;
 
-        if (entry.flag == LOWERBOUND && entry.score >= beta)
-            return entry.score;
+        if (entry.flag == LOWERBOUND && tt_score >= beta)
+            return tt_score;
 
-        if (entry.flag == UPPERBOUND && entry.score <= alpha)
-            return entry.score;
+        if (entry.flag == UPPERBOUND && tt_score <= alpha)
+            return tt_score;
     }
 
     nodes++;
@@ -112,14 +131,25 @@ int Minimax(Board& board, std::uint8_t depth, int alpha, int beta, PrincipalVari
         return eval;
     }
 
-    if (depth >= 3 && !board.LegalTest(board.turn) && !board.IsEndgame()) {
-        int R = 2 + depth / 4;
+    if (allow_null && depth >= 3 && board.LegalTest(!board.turn) && !board.IsEndgame()) {
+        const int reduction = 2 + depth / 4;
+        const bool maximizing = board.turn;
         board.MakeNullMove();
         PrincipalVariation<Move> dummy;
-        int score = Minimax(board, depth - R - 1, beta - 1, beta, dummy, nodes, ply + 1);
+        int score;
+        if (maximizing)
+            score = Minimax(board, depth - reduction - 1, beta - 1, beta, dummy, nodes, ply + 1, false);
+        else
+            score = Minimax(board, depth - reduction - 1, alpha, alpha + 1, dummy, nodes, ply + 1, false);
         board.UnMakeNullMove();
-        if (score >= beta)
+        if (IsInterrupted()) {
+            pv.Clear();
+            return 0;
+        }
+        if (maximizing && score >= beta)
             return beta;
+        if (!maximizing && score <= alpha)
+            return alpha;
     }
 
     bool possibility = false;
@@ -133,6 +163,7 @@ int Minimax(Board& board, std::uint8_t depth, int alpha, int beta, PrincipalVari
 
     PrincipalVariation<Move> best_pv;
     Move best_move = NO_MOVE;
+    const bool node_in_check = !board.LegalTest(!board.turn);
     if (board.turn) {
         int best_eval = alpha;
         for (int i = 0; i < move_count; i++) {
@@ -143,7 +174,7 @@ int Minimax(Board& board, std::uint8_t depth, int alpha, int beta, PrincipalVari
             }
             possibility = true;
             PrincipalVariation<Move> child_pv;
-            int reduction = (depth >= 3 && i > 5 && !IsCapture(possible_moves[i]) && board.LegalTest(true)) ? (i / 6) : 0;
+            int reduction = (depth >= 3 && i > 5 && !IsCapture(possible_moves[i]) && board.LegalTest(!board.turn) && !node_in_check) ? (i / 6) : 0;
             int evaluation;
             if (reduction) {
                 evaluation = Minimax(board, ((depth - 1 - reduction) > 0) ? depth - 1 - reduction : 1, best_eval, beta, child_pv, nodes, ply + 1);
@@ -165,7 +196,7 @@ int Minimax(Board& board, std::uint8_t depth, int alpha, int beta, PrincipalVari
                 TTEntry new_entry;
                 new_entry.key = board.zobrist_hash;
                 new_entry.depth = depth;
-                new_entry.score = beta;
+                new_entry.score = ScoreToTT(beta, ply);
                 new_entry.flag = LOWERBOUND;
                 new_entry.best_move = possible_moves[i];
                 StoreTT(new_entry);
@@ -182,7 +213,7 @@ int Minimax(Board& board, std::uint8_t depth, int alpha, int beta, PrincipalVari
             TTEntry new_entry;
             new_entry.key = board.zobrist_hash;
             new_entry.depth = depth;
-            new_entry.score = eval;          
+            new_entry.score = ScoreToTT(eval, ply);          
             new_entry.flag = EXACT;          
             new_entry.best_move = NO_MOVE;
             StoreTT(new_entry);
@@ -195,7 +226,7 @@ int Minimax(Board& board, std::uint8_t depth, int alpha, int beta, PrincipalVari
         TTEntry new_entry;
         new_entry.key = board.zobrist_hash;
         new_entry.depth = depth;
-        new_entry.score = best_eval;
+        new_entry.score = ScoreToTT(best_eval, ply);
         new_entry.best_move = best_move;
 
         if (best_eval <= alpha)
@@ -216,7 +247,7 @@ int Minimax(Board& board, std::uint8_t depth, int alpha, int beta, PrincipalVari
             }
             possibility = true;
             PrincipalVariation<Move> child_pv;
-            int reduction = (depth >= 3 && i > 5 && !IsCapture(possible_moves[i]) && board.LegalTest(false)) ? (i / 6) : 0;
+            int reduction = (depth >= 3 && i > 5 && !IsCapture(possible_moves[i]) && board.LegalTest(!board.turn) && !node_in_check) ? (i / 6) : 0;
             int evaluation;
             if (reduction) {
                 evaluation = Minimax(board, ((depth - 1 - reduction) > 0) ? depth - 1 - reduction : 1, alpha, best_eval, child_pv, nodes, ply + 1);
@@ -238,7 +269,7 @@ int Minimax(Board& board, std::uint8_t depth, int alpha, int beta, PrincipalVari
                 TTEntry new_entry;
                 new_entry.key = board.zobrist_hash;
                 new_entry.depth = depth;
-                new_entry.score = alpha;
+                new_entry.score = ScoreToTT(alpha, ply);
                 new_entry.flag = UPPERBOUND;
                 new_entry.best_move = possible_moves[i];
                 StoreTT(new_entry);
@@ -255,7 +286,7 @@ int Minimax(Board& board, std::uint8_t depth, int alpha, int beta, PrincipalVari
             TTEntry new_entry;
             new_entry.key = board.zobrist_hash;
             new_entry.depth = depth;
-            new_entry.score = eval;          
+            new_entry.score = ScoreToTT(eval, ply);          
             new_entry.flag = EXACT;          
             new_entry.best_move = NO_MOVE;
             StoreTT(new_entry);
@@ -268,7 +299,7 @@ int Minimax(Board& board, std::uint8_t depth, int alpha, int beta, PrincipalVari
         TTEntry new_entry;
         new_entry.key = board.zobrist_hash;
         new_entry.depth = depth;
-        new_entry.score = best_eval;
+        new_entry.score = ScoreToTT(best_eval, ply);
         new_entry.best_move = best_move;
 
         if (best_eval >= beta)
