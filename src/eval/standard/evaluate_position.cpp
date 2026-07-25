@@ -16,6 +16,73 @@ bool IsOpening(const Board& board) {
     return (count <= 28) ? false : true;
 }
 
+constexpr unsigned int PAWN_HASH_SIZE = 1 << 14;
+
+struct PawnHashEntry {
+    Bitboard white_pawns = 0;
+    Bitboard black_pawns = 0;
+    Bitboard white_rook_behind_mask = 0;
+    Bitboard black_rook_behind_mask = 0;
+    int evaluation = 0;
+    bool valid = false;
+};
+
+struct PawnEvaluation {
+    int evaluation = 0;
+    Bitboard white_rook_behind_mask = 0;
+    Bitboard black_rook_behind_mask = 0;
+};
+
+thread_local std::array<PawnHashEntry, PAWN_HASH_SIZE> pawn_hash;
+
+PawnEvaluation EvaluatePawnStructure(Bitboard white_pawns, Bitboard black_pawns) {
+    using namespace eval;
+    std::uint64_t hash = white_pawns ^ ((black_pawns << 32) | (black_pawns >> 32));
+    auto& entry = pawn_hash[hash & (PAWN_HASH_SIZE - 1)];
+    if (entry.valid && entry.white_pawns == white_pawns && entry.black_pawns == black_pawns)
+        return {entry.evaluation, entry.white_rook_behind_mask, entry.black_rook_behind_mask};
+    int eval = (popcount((white_pawns & (white_pawns << 9) & 0xFEFEFEFEFEFEFEFE) | (white_pawns & (white_pawns << 7) & 0x7F7F7F7F7F7F7F7F)) 
+    - popcount((black_pawns & (black_pawns >> 9) & 0x7F7F7F7F7F7F7F7F) | (black_pawns & (black_pawns >> 7) & 0xFEFEFEFEFEFEFEFE))) * 7;
+
+    std::uint8_t square;
+    Bitboard mask;
+    Bitboard pawns = white_pawns;
+    PawnEvaluation result;
+    while (pawns != 0) {
+        square = pop_lsb(pawns);
+        mask = line_behind_white_pawn[square] & white_pawns;
+        eval -= (mask == 0) ? 0 : Check2Bits(mask) ? 40 : 30;
+        if ((masks_for_white_passing_pawn[square] & black_pawns) == 0) {
+            eval += kEvalPassingWhitePawns[square];
+            result.white_rook_behind_mask |= line_behind_white_pawn[square];
+        } else
+            eval += kEvalWhitePawns[square];
+        eval -= ((masks_for_isolated_pawn[square] & white_pawns) == 0) ? 25 : 0;
+    }
+
+    pawns = black_pawns;
+    while (pawns != 0) {
+        square = pop_lsb(pawns);
+        mask = line_behind_black_pawn[square] & black_pawns;
+        eval += (mask == 0) ? 0 : Check2Bits(mask) ? 40 : 30;
+        if ((masks_for_black_passing_pawn[square] & white_pawns) == 0) {
+            eval -= kEvalPassingBlackPawns[square];
+            result.black_rook_behind_mask |= line_behind_black_pawn[square];
+        } else
+            eval -= kEvalBlackPawns[square];
+        eval += ((masks_for_isolated_pawn[square] & black_pawns) == 0) ? 25 : 0;
+    }
+
+    result.evaluation = eval;
+    entry.white_pawns = white_pawns;
+    entry.black_pawns = black_pawns;
+    entry.white_rook_behind_mask = result.white_rook_behind_mask;
+    entry.black_rook_behind_mask = result.black_rook_behind_mask;
+    entry.evaluation = result.evaluation;
+    entry.valid = true;
+    return result;
+}
+
 }
 
 int Board::EvaluatePosition() const {
@@ -40,34 +107,14 @@ int Board::EvaluatePosition() const {
     Bitboard not_white = ~white;
     Bitboard not_black = ~black;
 
-    eval += (popcount((white_pawns & (white_pawns << 9) & 0xFEFEFEFEFEFEFEFE) | (white_pawns & (white_pawns << 7) & 0x7F7F7F7F7F7F7F7F)) 
-    - popcount((black_pawns&(black_pawns >> 9) & 0x7F7F7F7F7F7F7F7F) | (black_pawns & (black_pawns >> 7) & 0xFEFEFEFEFEFEFEFE))) * 7; // Пешечная цепь
-
-    Bitboard w_pawns = bitboards[0][0];
-    while (w_pawns != 0) { // Пешечная структура белых
-        square = pop_lsb(w_pawns);
-        mask = line_behind_white_pawn[square] & white_pawns;
-        eval -= (mask == 0) ? 0 : Check2Bits(mask) ? 40 : 30;
-        if ((masks_for_white_passing_pawn[square] & black_pawns) == 0) {
-            eval += kEvalPassingWhitePawns[square];
-            eval += ((line_behind_white_pawn[square] & bitboards[0][3]) != 0) ? 20 : 0;
-        } else
-            eval += kEvalWhitePawns[square];
-        eval -= ((masks_for_isolated_pawn[square] & white_pawns) == 0) ? 25 : 0;
-    }
-
-    Bitboard b_pawns = bitboards[1][0];
-    while (b_pawns != 0) { // Пешечная структура черных
-        square = pop_lsb(b_pawns);
-        mask = line_behind_black_pawn[square] & black_pawns;
-        eval += (mask == 0) ? 0 : Check2Bits(mask) ? 40 : 30;
-        if ((masks_for_black_passing_pawn[square] & white_pawns) == 0) {
-            eval -= kEvalPassingBlackPawns[square];
-            eval -= ((line_behind_black_pawn[square] & bitboards[1][3]) != 0) ? 20 : 0;
-        } else
-            eval -= kEvalBlackPawns[square];
-        eval += ((masks_for_isolated_pawn[square] & black_pawns) == 0) ? 25 : 0;
-    }
+    auto pawn_eval = EvaluatePawnStructure(white_pawns, black_pawns);
+    eval += pawn_eval.evaluation;
+    mask = bitboards[0][3] & pawn_eval.white_rook_behind_mask;
+    if (mask != 0)
+        eval += Check2Bits(mask) ? 40 : 20;
+    mask = bitboards[1][3] & pawn_eval.black_rook_behind_mask;
+    if (mask != 0)
+        eval -= Check2Bits(mask) ? 40 : 20;
 
     if (IsOpening(*this)) {
         mask = white_pawns & 0x1818000000; // Центральные пешки в дебюте
