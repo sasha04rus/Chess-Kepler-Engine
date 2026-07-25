@@ -31,7 +31,6 @@ struct Board {
     std::uint8_t en_passant = 0;
     std::uint64_t zobrist_hash = 0;
     std::uint8_t last_irreversible = 0;
-    std::uint8_t null_en_passant = 0;
 
     RotatedBoard rotated;
 
@@ -56,6 +55,6 @@ struct Board {
 
     void UnMakeMove(const Move& move);
 
-    void MakeNullMove();
-    void UnMakeNullMove();
+    std::uint8_t MakeNullMove();
+    void UnMakeNullMove(std::uint8_t saved_en_passant);
 };

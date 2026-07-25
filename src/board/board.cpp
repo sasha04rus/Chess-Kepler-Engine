@@ -682,19 +682,20 @@ void Board::UnMakeMove(const Move& move) {
     }
 }
 
-void Board::MakeNullMove() {
-    null_en_passant = en_passant;
+std::uint8_t Board::MakeNullMove() {
+    const std::uint8_t saved_en_passant = en_passant;
     if (en_passant != 0)
         zobrist_hash ^= zobrist::en_passant[zobrist::ep_square_to_index[en_passant]];
     en_passant = 0;
     turn = !turn;
     zobrist_hash ^= zobrist::turn;
+    return saved_en_passant;
 }
 
-void Board::UnMakeNullMove() {
+void Board::UnMakeNullMove(std::uint8_t saved_en_passant) {
     turn = !turn;
     zobrist_hash ^= zobrist::turn;
-    en_passant = null_en_passant;
+    en_passant = saved_en_passant;
     if (en_passant != 0)
         zobrist_hash ^= zobrist::en_passant[zobrist::ep_square_to_index[en_passant]];
 }
