@@ -15,7 +15,7 @@ Uci::Uci() {
         if (!args.empty()) return;
         out << "id name Kepler-Engine v0\nid author Sasha Tastakov\n"
             << "option name MultiPV type spin default 1 min 1 max 218\n"
-            << "option name Threads type spin default 4 min 1 max 64\n"
+            << "option name Threads type spin default 1 min 1 max 64\n"
             << "uciok"
             << std::endl;
     };
