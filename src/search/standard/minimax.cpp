@@ -67,42 +67,72 @@ void MoveSort(Move moves[218], int count, const Move* prev_best_move, int ply) {
     }
 }
 
-int MinimaxCap(Board& board, int alpha, int beta, std::uint64_t& nodes) {
-    if ((nodes & 1023ULL) == 0 && IsInterrupted()) return 0;
-    int eval = board.EvaluatePosition();
-    if (board.turn) {
-        if (eval >= beta) return beta;
-        if (eval > alpha) alpha = eval;
-    } else {
-        if (eval <= alpha) return alpha;
-        if (eval < beta) beta = eval;
+constexpr int MAX_SEARCH_PLY = 128;
+int MinimaxCap(Board& board, int alpha, int beta, std::uint64_t& nodes, int ply) {
+    if ((nodes & 1023ULL) == 0 && IsInterrupted())
+        return 0;
+    if (board.GameAbort())
+        return 0;
+    const bool in_check = !board.LegalTest(!board.turn);
+    if (ply >= MAX_SEARCH_PLY)
+        return in_check ? 0 : board.EvaluatePosition();
+    if (!in_check) {
+        int eval = board.EvaluatePosition();
+        if (board.turn) {
+            if (eval >= beta)
+                return beta;
+            if (eval > alpha)
+                alpha = eval;
+        } else {
+            if (eval <= alpha)
+                return alpha;
+            if (eval < beta)
+                beta = eval;
+        }
     }
     nodes++;
     Move possible_moves[MAX_MOVES];
-    int move_count = movegen::GenerateMoves(board, possible_moves, true);
-    std::sort(possible_moves, possible_moves + move_count, [](const Move& a, const Move& b) {return a.Different() > b.Different();});
+    int move_count = movegen::GenerateMoves(board, possible_moves, !in_check);
+    if (in_check) {
+        Move* good_end = std::partition(possible_moves, possible_moves + move_count, IsCapture);
+        std::sort(possible_moves, good_end, [](const Move& a, const Move& b) {
+            return a.Different() > b.Different();
+        });
+    } else std::sort(possible_moves, possible_moves + move_count, [](const Move& a, const Move& b) {
+        return a.Different() > b.Different();
+    });
+    bool possibility = false;
     for (int i = 0; i < move_count; i++) {
         board.MakeMove(possible_moves[i]);
         if (!board.LegalTest(board.turn)) {
-                board.UnMakeMove(possible_moves[i]);
-                continue;
-            }
-        int evaluation = MinimaxCap(board, alpha, beta, nodes);
+            board.UnMakeMove(possible_moves[i]);
+            continue;
+        }
+        possibility = true;
+        int evaluation = MinimaxCap(board, alpha, beta, nodes, ply + 1);
         board.UnMakeMove(possible_moves[i]);
+        if (IsInterrupted())
+            return 0;
         if (board.turn) {
-            if (evaluation >= beta) return beta;
-            if (evaluation > alpha) alpha = evaluation;
+            if (evaluation >= beta)
+                return beta;
+            if (evaluation > alpha)
+                alpha = evaluation;
         } else {
-            if (evaluation <= alpha) return alpha;
-            if (evaluation < beta) beta = evaluation;
+            if (evaluation <= alpha)
+                return alpha;
+            if (evaluation < beta)
+                beta = evaluation;
         }
     }
+    if (in_check && !possibility)
+        return board.turn ? -MATE_VALUE + ply : MATE_VALUE - ply;
     return board.turn ? alpha : beta;
 }
 
 }
 
-int Minimax(Board& board, std::uint8_t depth, int alpha, int beta, PrincipalVariation<Move>& pv, std::uint64_t& nodes, int ply, bool allow_null) {
+int Minimax(Board& board, int depth, int alpha, int beta, PrincipalVariation<Move>& pv, std::uint64_t& nodes, int ply, bool allow_null) {
     if ((nodes & 1023ULL) == 0 && IsInterrupted()) {
         pv.Clear();
         return 0;
@@ -126,7 +156,7 @@ int Minimax(Board& board, std::uint8_t depth, int alpha, int beta, PrincipalVari
     nodes++;
 
     if (depth <= 0) {
-        int eval = MinimaxCap(board, alpha, beta, nodes);
+        int eval = MinimaxCap(board, alpha, beta, nodes, ply);
         pv.Clear();
         return eval;
     }
@@ -134,14 +164,14 @@ int Minimax(Board& board, std::uint8_t depth, int alpha, int beta, PrincipalVari
     if (allow_null && depth >= 3 && board.LegalTest(!board.turn) && !board.IsEndgame()) {
         const int reduction = 2 + depth / 4;
         const bool maximizing = board.turn;
-        board.MakeNullMove();
+        const std::uint8_t saved_en_passant = board.MakeNullMove();
         PrincipalVariation<Move> dummy;
         int score;
         if (maximizing)
             score = Minimax(board, depth - reduction - 1, beta - 1, beta, dummy, nodes, ply + 1, false);
         else
             score = Minimax(board, depth - reduction - 1, alpha, alpha + 1, dummy, nodes, ply + 1, false);
-        board.UnMakeNullMove();
+        board.UnMakeNullMove(saved_en_passant);
         if (IsInterrupted()) {
             pv.Clear();
             return 0;
@@ -152,10 +182,9 @@ int Minimax(Board& board, std::uint8_t depth, int alpha, int beta, PrincipalVari
             return alpha;
     }
 
-    bool possibility = false;
     Move possible_moves[MAX_MOVES];
     int move_count = movegen::GenerateMoves(board, possible_moves);
-
+    int legal_moves = 0;
     if (tt_hit && !(entry.best_move == NO_MOVE))
         MoveSort(possible_moves, move_count, &entry.best_move, ply);
     else
@@ -172,9 +201,15 @@ int Minimax(Board& board, std::uint8_t depth, int alpha, int beta, PrincipalVari
                 board.UnMakeMove(possible_moves[i]);
                 continue;
             }
-            possibility = true;
+            legal_moves++;
             PrincipalVariation<Move> child_pv;
-            int reduction = (depth >= 3 && i > 5 && !IsCapture(possible_moves[i]) && board.LegalTest(!board.turn) && !node_in_check) ? (i / 6) : 0;
+            int reduction = 0;
+            if (depth >= 3 && legal_moves >= 6 && !IsCapture(possible_moves[i]) && board.LegalTest(!board.turn) && !node_in_check) {
+                reduction = 1;
+                if (depth >= 6 && legal_moves >= 12)
+                    reduction = 2;
+                reduction = std::min(reduction, depth - 2);
+            }
             int evaluation;
             if (reduction) {
                 evaluation = Minimax(board, ((depth - 1 - reduction) > 0) ? depth - 1 - reduction : 1, best_eval, beta, child_pv, nodes, ply + 1);
@@ -207,7 +242,7 @@ int Minimax(Board& board, std::uint8_t depth, int alpha, int beta, PrincipalVari
                 best_pv = child_pv;
             }
         }
-        if (!possibility) {
+        if (legal_moves == 0) {
             int eval = board.LegalTest(false) ? 0 : -MATE_VALUE + ply;
             pv.Clear();
             TTEntry new_entry;
@@ -245,9 +280,15 @@ int Minimax(Board& board, std::uint8_t depth, int alpha, int beta, PrincipalVari
                 board.UnMakeMove(possible_moves[i]);
                 continue;
             }
-            possibility = true;
+            legal_moves++;
             PrincipalVariation<Move> child_pv;
-            int reduction = (depth >= 3 && i > 5 && !IsCapture(possible_moves[i]) && board.LegalTest(!board.turn) && !node_in_check) ? (i / 6) : 0;
+            int reduction = 0;
+            if (depth >= 3 && legal_moves >= 6 && !IsCapture(possible_moves[i]) && board.LegalTest(!board.turn) && !node_in_check) {
+                reduction = 1;
+                if (depth >= 6 && legal_moves >= 12)
+                    reduction = 2;
+                reduction = std::min(reduction, depth - 2);
+            }
             int evaluation;
             if (reduction) {
                 evaluation = Minimax(board, ((depth - 1 - reduction) > 0) ? depth - 1 - reduction : 1, alpha, best_eval, child_pv, nodes, ply + 1);
@@ -280,7 +321,7 @@ int Minimax(Board& board, std::uint8_t depth, int alpha, int beta, PrincipalVari
                 best_pv = child_pv;
             }
         }
-        if (!possibility) {
+        if (legal_moves == 0) {
             int eval = board.LegalTest(true) ? 0 : MATE_VALUE - ply;
             pv.Clear();
             TTEntry new_entry;
