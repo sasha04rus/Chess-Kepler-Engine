@@ -20,7 +20,7 @@ struct SearchArgs {
     Board board;
     int max_depth;
     int threads;
-    std::uint8_t multi_pv;
+    int multi_pv;
 };
 
 template <typename MoveType>
