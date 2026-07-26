@@ -141,7 +141,7 @@ int Minimax(Board& board, int depth, int alpha, int beta, PrincipalVariation<Mov
 
     TTEntry entry{};
     const bool tt_hit = ProbeTT(board.zobrist_hash, entry);
-    if (tt_hit && ply > 0 && entry.depth >= depth) {
+    if (tt_hit && ply > 0 && entry.depth >= depth && !((beta - alpha) > 1)) {
         const int tt_score = ScoreFromTT(entry.score, ply);
         if (entry.flag == EXACT)
             return tt_score;
@@ -189,56 +189,68 @@ int Minimax(Board& board, int depth, int alpha, int beta, PrincipalVariation<Mov
         MoveSort(possible_moves, move_count, &entry.best_move, ply);
     else
         MoveSort(possible_moves, move_count, nullptr, ply);
-
+    bool pv_search = true;
     PrincipalVariation<Move> best_pv;
     Move best_move = NO_MOVE;
     const bool node_in_check = !board.LegalTest(!board.turn);
     if (board.turn) {
         int best_eval = alpha;
         for (int i = 0; i < move_count; i++) {
-            board.MakeMove(possible_moves[i]);
+            const auto& move = possible_moves[i];
+            board.MakeMove(move);
             if (!board.LegalTest(false)) {
-                board.UnMakeMove(possible_moves[i]);
+                board.UnMakeMove(move);
                 continue;
             }
             legal_moves++;
             PrincipalVariation<Move> child_pv;
-            int reduction = 0;
-            if (depth >= 3 && legal_moves >= 6 && !IsCapture(possible_moves[i]) && board.LegalTest(!board.turn) && !node_in_check) {
-                reduction = 1;
-                if (depth >= 6 && legal_moves >= 12)
-                    reduction = 2;
-                reduction = std::min(reduction, depth - 2);
-            }
             int evaluation;
-            if (reduction) {
-                evaluation = Minimax(board, ((depth - 1 - reduction) > 0) ? depth - 1 - reduction : 1, best_eval, beta, child_pv, nodes, ply + 1);
-                if (evaluation > best_eval)
-                    evaluation = Minimax(board, depth - 1, best_eval, beta, child_pv, nodes, ply + 1);
-            } else 
+            if (pv_search) {
                 evaluation = Minimax(board, depth - 1, best_eval, beta, child_pv, nodes, ply + 1);
-            board.UnMakeMove(possible_moves[i]);
+                pv_search = false;
+            } else {
+                int reduction = 0;
+                if (depth >= 3 && legal_moves >= 6 && !IsCapture(move) && !node_in_check && board.LegalTest(!board.turn)) {
+                    reduction = 1;
+                    if (depth >= 6 && legal_moves >= 12)
+                        reduction = 2;
+                    reduction = std::min(reduction, depth - 2);
+                }
+                PrincipalVariation<Move> probe_pv;
+                if (reduction) {
+                    evaluation = Minimax(board, depth - 1 - reduction, best_eval, best_eval + 1, probe_pv, nodes, ply + 1);
+                    if (evaluation > best_eval) {
+                        probe_pv.Clear();
+                        evaluation = Minimax(board, depth - 1, best_eval, best_eval + 1, probe_pv, nodes, ply + 1);
+                    }
+                } else { evaluation = Minimax(board, depth - 1, best_eval, best_eval + 1, probe_pv, nodes, ply + 1); }
+                if (evaluation > best_eval && evaluation < beta)
+                    evaluation = Minimax(board, depth - 1, alpha, beta, child_pv, nodes, ply + 1);
+            }
+            board.UnMakeMove(move);
             if (IsInterrupted()) {
                 pv.Clear();
                 return 0;
             }
             if (evaluation >= beta) {
-                if (!IsCapture(possible_moves[i])) {
+                if (!IsCapture(move)) {
                     killers[ply][1] = killers[ply][0];
-                    killers[ply][0] = possible_moves[i];
+                    killers[ply][0] = move;
                 }
-                pv.Set(possible_moves[i], child_pv);
+                pv.Set(move, child_pv);
                 TTEntry new_entry;
                 new_entry.key = board.zobrist_hash;
                 new_entry.depth = depth;
                 new_entry.score = ScoreToTT(beta, ply);
                 new_entry.flag = LOWERBOUND;
-                new_entry.best_move = possible_moves[i];
+                new_entry.best_move = move;
                 StoreTT(new_entry);
                 return beta;
-            } else if (evaluation > best_eval) {
+            }
+            
+            if (evaluation > best_eval) {
                 best_eval = evaluation;
-                best_move = possible_moves[i];
+                best_move = move;
                 best_pv = child_pv;
             }
         }
@@ -275,49 +287,61 @@ int Minimax(Board& board, int depth, int alpha, int beta, PrincipalVariation<Mov
     } else {
         int best_eval = beta;
         for (int i = 0; i < move_count; i++) {
-            board.MakeMove(possible_moves[i]);
+            const auto& move = possible_moves[i];
+            board.MakeMove(move);
             if (!board.LegalTest(true)) {
-                board.UnMakeMove(possible_moves[i]);
+                board.UnMakeMove(move);
                 continue;
             }
             legal_moves++;
             PrincipalVariation<Move> child_pv;
-            int reduction = 0;
-            if (depth >= 3 && legal_moves >= 6 && !IsCapture(possible_moves[i]) && board.LegalTest(!board.turn) && !node_in_check) {
-                reduction = 1;
-                if (depth >= 6 && legal_moves >= 12)
-                    reduction = 2;
-                reduction = std::min(reduction, depth - 2);
-            }
             int evaluation;
-            if (reduction) {
-                evaluation = Minimax(board, ((depth - 1 - reduction) > 0) ? depth - 1 - reduction : 1, alpha, best_eval, child_pv, nodes, ply + 1);
-                if (evaluation < best_eval)
-                    evaluation = Minimax(board, depth - 1, alpha, best_eval, child_pv, nodes, ply + 1);
-            } else
+            if (pv_search) {
                 evaluation = Minimax(board, depth - 1, alpha, best_eval, child_pv, nodes, ply + 1);
-            board.UnMakeMove(possible_moves[i]);
+                pv_search = false;
+            } else {
+                int reduction = 0;
+                if (depth >= 3 && legal_moves >= 6 && !IsCapture(move) && !node_in_check && board.LegalTest(!board.turn)) {
+                    reduction = 1;
+                    if (depth >= 6 && legal_moves >= 12)
+                        reduction = 2;
+                    reduction = std::min(reduction, depth - 2);
+                }
+                PrincipalVariation<Move> probe_pv;
+                if (reduction) {
+                    evaluation = Minimax(board, depth - 1 - reduction, best_eval - 1, best_eval, probe_pv, nodes, ply + 1);
+                    if (evaluation < best_eval) {
+                        probe_pv.Clear();
+                        evaluation = Minimax(board, depth - 1, best_eval - 1, best_eval, probe_pv, nodes, ply + 1);
+                    }
+                } else { evaluation = Minimax(board, depth - 1, best_eval - 1, best_eval, probe_pv, nodes, ply + 1); }
+                if (evaluation < best_eval && evaluation > alpha)
+                    evaluation = Minimax(board, depth - 1, alpha, beta, child_pv, nodes, ply + 1);
+            }
+            board.UnMakeMove(move);
             if (IsInterrupted()) {
                 pv.Clear();
                 return 0;
             }
             if (evaluation <= alpha) {
-                if (!IsCapture(possible_moves[i])) {
+                if (!IsCapture(move)) {
                     killers[ply][1] = killers[ply][0];
-                    killers[ply][0] = possible_moves[i];
+                    killers[ply][0] = move;
                 }
-                pv.Set(possible_moves[i], child_pv);
+                pv.Set(move, child_pv);
                 TTEntry new_entry;
                 new_entry.key = board.zobrist_hash;
                 new_entry.depth = depth;
                 new_entry.score = ScoreToTT(alpha, ply);
                 new_entry.flag = UPPERBOUND;
-                new_entry.best_move = possible_moves[i];
+                new_entry.best_move = move;
                 StoreTT(new_entry);
                 return alpha;
-            } else if (evaluation < best_eval) {
+            } 
+            
+            if (evaluation < best_eval) {
                 best_eval = evaluation;
-                best_move = possible_moves[i];
+                best_move = move;
                 best_pv = child_pv;
             }
         }
