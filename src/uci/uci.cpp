@@ -36,9 +36,9 @@ Uci::Uci() {
         if ((args[0] != "name") || (args[2] != "value")) return;
         try {
             if (args[1] == "MultiPV")
-                multi_pv_ = std::stoi(args[3]);
+                multi_pv_ = std::clamp(std::stoi(args[3]), 1, 218);
             else if (args[1] == "Threads")
-                threads_ = std::stoi(args[3]);
+                threads_ = std::clamp(std::stoi(args[3]), 1, 64);
         } catch(...) { return; }
     };
 
