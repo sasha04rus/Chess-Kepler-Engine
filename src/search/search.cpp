@@ -17,6 +17,7 @@
 #include "../tt/tt.h"
 #include "../moves/to_string.h"
 #include "../movegen/generate_moves.h"
+#include "../../history/history.h"
 #include "standard/minimax.h"
 #include "tar/minimax.h"
 
@@ -161,6 +162,7 @@ void* Search(void* raw_args) {
     }
 
     ClearKiller();
+    ClearHistory();
     SearchResult<MoveType> last_complete;
     for (int depth = 1; depth <= search_args->max_depth; depth++) {
         if (IsInterrupted())
