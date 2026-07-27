@@ -8,9 +8,12 @@
 #include "../../moves/pv.h"
 #include "../../movegen/generate_moves.h"
 #include "../../eval/standard/evaluate_position.h"
+#include "../../history/history.h"
 #include "../search.h"
 
 namespace {
+
+constexpr int MAX_SEARCH_PLY = 128;
 
 bool IsCapture(const Move& move) {
     switch (move.flag) {
@@ -24,6 +27,47 @@ bool IsCapture(const Move& move) {
         default:
             return false;
     }
+}
+
+bool IsPromotion(const Move& move) {
+    switch (move.flag) {
+        case Flag::kTransformationToKnight:
+        case Flag::kTransformationToBishop:
+        case Flag::kTransformationToRook:
+        case Flag::kTransformationToQueen:
+        case Flag::kTransformationToKnightWithCapture:
+        case Flag::kTransformationToBishopWithCapture:
+        case Flag::kTransformationToRookWithCapture:
+        case Flag::kTransformationToQueenWithCapture:
+            return true;
+
+        default:
+            return false;
+    }
+}
+
+bool IsQuiet(const Move& move) {
+    return !IsCapture(move) && !IsPromotion(move);
+}
+
+int GetReduction(int depth, int move_number, bool node_in_check, bool gives_check, bool is_capture, bool is_promotion, int history_score) {
+    if (depth < 3 || move_number <= 2 || node_in_check || gives_check || is_capture || is_promotion)
+        return 0;
+    int reduction = 1;
+    if (depth >= 5 && move_number >= 6)
+        reduction++;
+    if (depth >= 8 && move_number >= 12)
+        reduction++;
+    if (depth >= 11 && move_number >= 20)
+        reduction++;
+
+    if (history_score >= 12000)
+        reduction -= 2;
+    else if (history_score >= 4000)
+        reduction -= 1;
+    else if (history_score <= -8000) 
+        reduction += 1;
+    return std::clamp(reduction, 0, depth - 2);
 }
 
 int ScoreToTT(int score, int ply) {
@@ -42,32 +86,25 @@ int ScoreFromTT(int score, int ply) {
     return score;
 }
 
-void MoveSort(Move moves[218], int count, const Move* prev_best_move, int ply) {
-    bool tt_move_found = false;
-    if (prev_best_move != nullptr) {
-        for (int i = 0; i < count; i++) {
-            if (moves[i] == *prev_best_move) {
-                std::swap(moves[0], moves[i]);
-                tt_move_found = true;
-                break;
-            }
-        }
+int MoveScore(const Move& move, const Move* tt_move, int ply, int side) {
+    if (tt_move != nullptr && move == *tt_move)
+        return 1000000;
+    if (IsCapture(move)) { return 800000 + move.Different(); }
+    if (ply < MAX_SEARCH_PLY) {
+        if (move == killers[ply][0])
+            return 700'000;
+        if (move == killers[ply][1])
+            return 690'000;
     }
-    Move* start = tt_move_found ? moves + 1 : moves;
-    Move* end = moves + count;
-    Move* good_end = std::partition(start, end, IsCapture);
-    std::sort(start, good_end, [](const Move& a, const Move& b) {
-        return a.Different() > b.Different();
-    });
-    for (Move* find = good_end; find < end; find++) {
-        if (*find == killers[ply][0] || *find == killers[ply][1]) {
-            std::swap(*find, *good_end);
-            good_end++;
-        }
-    }
+    return GetHistoryScore(side, move);
 }
 
-constexpr int MAX_SEARCH_PLY = 128;
+void MoveSort(Move moves[MAX_MOVES], int count, const Move* tt_move, int ply, int side) {
+    std::stable_sort(moves, moves + count, [&](const Move& left,const Move& right) {
+        return MoveScore(left, tt_move, ply, side) > MoveScore(right, tt_move, ply, side);
+    });
+}
+
 int MinimaxCap(Board& board, int alpha, int beta, std::uint64_t& nodes, int ply) {
     if ((nodes & 1023ULL) == 0 && IsInterrupted())
         return 0;
@@ -185,14 +222,17 @@ int Minimax(Board& board, int depth, int alpha, int beta, PrincipalVariation<Mov
     Move possible_moves[MAX_MOVES];
     int move_count = movegen::GenerateMoves(board, possible_moves);
     int legal_moves = 0;
+    const int side = board.turn ? 0 : 1;
     if (tt_hit && !(entry.best_move == NO_MOVE))
-        MoveSort(possible_moves, move_count, &entry.best_move, ply);
+        MoveSort(possible_moves, move_count, &entry.best_move, ply, side);
     else
-        MoveSort(possible_moves, move_count, nullptr, ply);
+        MoveSort(possible_moves, move_count, nullptr, ply, side);
     bool pv_search = true;
     PrincipalVariation<Move> best_pv;
     Move best_move = NO_MOVE;
     const bool node_in_check = !board.LegalTest(!board.turn);
+    Move searched_quiets[MAX_MOVES];
+    int searched_quiet_count = 0;
     if (board.turn) {
         int best_eval = alpha;
         for (int i = 0; i < move_count; i++) {
@@ -209,13 +249,7 @@ int Minimax(Board& board, int depth, int alpha, int beta, PrincipalVariation<Mov
                 evaluation = Minimax(board, depth - 1, best_eval, beta, child_pv, nodes, ply + 1);
                 pv_search = false;
             } else {
-                int reduction = 0;
-                if (depth >= 3 && legal_moves >= 6 && !IsCapture(move) && !node_in_check && board.LegalTest(!board.turn)) {
-                    reduction = 1;
-                    if (depth >= 6 && legal_moves >= 12)
-                        reduction = 2;
-                    reduction = std::min(reduction, depth - 2);
-                }
+                const int reduction = GetReduction(depth, legal_moves, node_in_check, !board.LegalTest(!board.turn), IsCapture(move), IsPromotion(move), GetHistoryScore(side, move));
                 PrincipalVariation<Move> probe_pv;
                 if (reduction) {
                     evaluation = Minimax(board, depth - 1 - reduction, best_eval, best_eval + 1, probe_pv, nodes, ply + 1);
@@ -225,7 +259,7 @@ int Minimax(Board& board, int depth, int alpha, int beta, PrincipalVariation<Mov
                     }
                 } else { evaluation = Minimax(board, depth - 1, best_eval, best_eval + 1, probe_pv, nodes, ply + 1); }
                 if (evaluation > best_eval && evaluation < beta)
-                    evaluation = Minimax(board, depth - 1, alpha, beta, child_pv, nodes, ply + 1);
+                    evaluation = Minimax(board, depth - 1, best_eval, beta, child_pv, nodes, ply + 1);
             }
             board.UnMakeMove(move);
             if (IsInterrupted()) {
@@ -233,9 +267,15 @@ int Minimax(Board& board, int depth, int alpha, int beta, PrincipalVariation<Mov
                 return 0;
             }
             if (evaluation >= beta) {
-                if (!IsCapture(move)) {
-                    killers[ply][1] = killers[ply][0];
-                    killers[ply][0] = move;
+                if (IsQuiet(move)) {
+                    const int bonus = HistoryBonus(depth);
+                    UpdateHistory(side, move, bonus);
+                    for (int j = 0; j < searched_quiet_count; j++)
+                        UpdateHistory(side, searched_quiets[j], -bonus / 2);
+                    if (ply < MAX_SEARCH_PLY) {
+                        killers[ply][1] = killers[ply][0];
+                        killers[ply][0] = move;
+                    }
                 }
                 pv.Set(move, child_pv);
                 TTEntry new_entry;
@@ -253,6 +293,7 @@ int Minimax(Board& board, int depth, int alpha, int beta, PrincipalVariation<Mov
                 best_move = move;
                 best_pv = child_pv;
             }
+            if (IsQuiet(move)) searched_quiets[searched_quiet_count++] = move;
         }
         if (legal_moves == 0) {
             int eval = board.LegalTest(false) ? 0 : -MATE_VALUE + ply;
@@ -300,13 +341,7 @@ int Minimax(Board& board, int depth, int alpha, int beta, PrincipalVariation<Mov
                 evaluation = Minimax(board, depth - 1, alpha, best_eval, child_pv, nodes, ply + 1);
                 pv_search = false;
             } else {
-                int reduction = 0;
-                if (depth >= 3 && legal_moves >= 6 && !IsCapture(move) && !node_in_check && board.LegalTest(!board.turn)) {
-                    reduction = 1;
-                    if (depth >= 6 && legal_moves >= 12)
-                        reduction = 2;
-                    reduction = std::min(reduction, depth - 2);
-                }
+                const int reduction = GetReduction(depth, legal_moves, node_in_check, !board.LegalTest(!board.turn), IsCapture(move), IsPromotion(move), GetHistoryScore(side, move));
                 PrincipalVariation<Move> probe_pv;
                 if (reduction) {
                     evaluation = Minimax(board, depth - 1 - reduction, best_eval - 1, best_eval, probe_pv, nodes, ply + 1);
@@ -316,7 +351,7 @@ int Minimax(Board& board, int depth, int alpha, int beta, PrincipalVariation<Mov
                     }
                 } else { evaluation = Minimax(board, depth - 1, best_eval - 1, best_eval, probe_pv, nodes, ply + 1); }
                 if (evaluation < best_eval && evaluation > alpha)
-                    evaluation = Minimax(board, depth - 1, alpha, beta, child_pv, nodes, ply + 1);
+                    evaluation = Minimax(board, depth - 1, alpha, best_eval, child_pv, nodes, ply + 1);
             }
             board.UnMakeMove(move);
             if (IsInterrupted()) {
@@ -324,9 +359,15 @@ int Minimax(Board& board, int depth, int alpha, int beta, PrincipalVariation<Mov
                 return 0;
             }
             if (evaluation <= alpha) {
-                if (!IsCapture(move)) {
-                    killers[ply][1] = killers[ply][0];
-                    killers[ply][0] = move;
+                if (IsQuiet(move)) {
+                    const int bonus = HistoryBonus(depth);
+                    UpdateHistory(side, move, bonus);
+                    for (int j = 0; j < searched_quiet_count; j++)
+                        UpdateHistory(side, searched_quiets[j], -bonus / 2);
+                    if (ply < MAX_SEARCH_PLY) {
+                        killers[ply][1] = killers[ply][0];
+                        killers[ply][0] = move;
+                    }
                 }
                 pv.Set(move, child_pv);
                 TTEntry new_entry;
@@ -338,12 +379,14 @@ int Minimax(Board& board, int depth, int alpha, int beta, PrincipalVariation<Mov
                 StoreTT(new_entry);
                 return alpha;
             } 
-            
+
             if (evaluation < best_eval) {
                 best_eval = evaluation;
                 best_move = move;
                 best_pv = child_pv;
             }
+
+            if (IsQuiet(move)) searched_quiets[searched_quiet_count++] = move;
         }
         if (legal_moves == 0) {
             int eval = board.LegalTest(true) ? 0 : MATE_VALUE - ply;
