@@ -78,11 +78,14 @@ Uci::Uci() {
             out << "empty position";
             return;
         }
+        int search_depth = depth_;
         try {
             if (args.empty() || args[0] == "infinity") {
                 movetime = 0;
             } else if (args.size() == 2 && args[0] == "movetime") {
                 movetime = std::stoi(args[1]);
+            } else if (args.size() == 2 && args[0] == "depth") {
+                search_depth = std::stoi(args[1]);
             } else if (args.size() >= 4) {
                 if ((args[0] != "wtime") || (args[2] != "btime")) return;
                 int wtime = std::stoi(args[1]);
@@ -96,7 +99,7 @@ Uci::Uci() {
         stop_signal = false;
         searching = true;
         clock_gettime(CLOCK_MONOTONIC, &start_time);
-        SearchArgs* sa = new SearchArgs{*board_ptr_, depth_, threads_, multi_pv_};
+        SearchArgs* sa = new SearchArgs{*board_ptr_, search_depth, threads_, multi_pv_};
         if (variant_ == Variant::kStandard)
             pthread_create(&search_thread_, nullptr, Search<Move>, sa);
         else if (variant_ == Variant::kTakeAndReturn)
