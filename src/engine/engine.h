@@ -26,8 +26,8 @@ public:
     void Go(int mt, int depth);
     void Stop();
     void NewGame();
-    bool GetTurn();
-    int GetPly();
+    bool GetTurn() const;
+    int GetPly() const;
     void SetInfoCallback(InfoCallback callback);
     void SetBestMoveCallback(BestMoveCallback callback);
 private:

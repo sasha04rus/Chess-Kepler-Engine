@@ -54,11 +54,11 @@ void Engine::NewGame() {
     ClearTT();
 }
 
-bool Engine::GetTurn() {
+bool Engine::GetTurn() const {
     return board_ptr_->turn;
 }
 
-int Engine::GetPly() {
+int Engine::GetPly() const {
     return board_ptr_->ply;
 }
 
