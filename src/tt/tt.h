@@ -3,9 +3,15 @@
 #include <atomic>
 #include <cstdint>
 
-#include "../moves/standard/move.h"
-
 #define MAX_PLY 30
+
+#if KEPLER_TAR
+#include "../moves/tar/move.h"
+using MoveType = MoveTar;
+#else
+#include "../moves/standard/move.h"
+using MoveType = Move;
+#endif
 
 constexpr std::size_t TT_SIZE = 1ULL << 23;
 
@@ -16,7 +22,7 @@ struct TTEntry {
     int depth = -1;
     int score = 0;
     TTFlag flag = EXACT;
-    Move best_move = NO_MOVE;
+    MoveType best_move = NO_MOVE;
 };
 
 struct TTSlot {

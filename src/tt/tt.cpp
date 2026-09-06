@@ -8,6 +8,19 @@ thread_local Move killers[MAX_PLY][2];
 
 namespace {
 
+#if KEPLER_TAR
+
+constexpr int TO_SHIFT = 6;
+constexpr int PIECE_SHIFT = 12;
+constexpr int TAKEN_PIECE_SHIFT = 15;
+constexpr int MOVE_FLAG_SHIFT = 18;
+constexpr int SET_SHIFT = 26;
+constexpr int SCORE_SHIFT = 36;
+constexpr int DEPTH_SHIFT = 52;
+constexpr int TT_FLAG_SHIFT = 60;
+
+#else
+
 constexpr int TO_SHIFT = 6;
 constexpr int PIECE_SHIFT = 12;
 constexpr int TAKEN_PIECE_SHIFT = 20;
@@ -16,23 +29,33 @@ constexpr int SCORE_SHIFT = 36;
 constexpr int DEPTH_SHIFT = 52;
 constexpr int TT_FLAG_SHIFT = 60;
 
-std::uint64_t PackMove(const Move& move) {
+#endif
+
+std::uint64_t PackMove(const MoveType& move) {
     std::uint64_t packed = 0;
     packed |= static_cast<std::uint64_t>(move.from & 0x3F);
     packed |= static_cast<std::uint64_t>(move.to & 0x3F) << TO_SHIFT;
-    packed |= static_cast<std::uint64_t>(move.piece) << PIECE_SHIFT;
-    packed |= static_cast<std::uint64_t>(move.taken_piece) << TAKEN_PIECE_SHIFT;
+    packed |= static_cast<std::uint64_t>(move.piece & 0x7) << PIECE_SHIFT;
+    packed |= static_cast<std::uint64_t>(move.taken_piece & 0x7) << TAKEN_PIECE_SHIFT;
+    #if KEPLER_TAR
+    packed |= static_cast<std::uint64_t>(move.set & 0x3F) << SET_SHIFT;
+    #endif
     packed |= static_cast<std::uint64_t>(static_cast<std::uint8_t>(move.flag)) << MOVE_FLAG_SHIFT;
     return packed;
 }
 
-Move UnpackMove(std::uint64_t packed) {
+MoveType UnpackMove(std::uint64_t packed) {
     const std::uint8_t from = static_cast<std::uint8_t>(packed & 0x3F);
     const std::uint8_t to = static_cast<std::uint8_t>((packed >> TO_SHIFT) & 0x3F);
-    const std::uint8_t piece = static_cast<std::uint8_t>((packed >> PIECE_SHIFT) & 0xFF);
-    const std::uint8_t taken_piece = static_cast<std::uint8_t>((packed >> TAKEN_PIECE_SHIFT) & 0xFF);
+    const std::uint8_t piece = static_cast<std::uint8_t>((packed >> PIECE_SHIFT) & 0x7);
+    const std::uint8_t taken_piece = static_cast<std::uint8_t>((packed >> TAKEN_PIECE_SHIFT) & 0x7);
     const Flag move_flag = static_cast<Flag>(static_cast<std::uint8_t>((packed >> MOVE_FLAG_SHIFT) & 0xFF));
+    #if KEPLER_TAR
+    const std::uint8_t set = static_cast<uint8_t>((packed >> SET_SHIFT) & 0x3F);
+    return MoveTar(from, to, piece, taken_piece, move_flag, set);
+    #else
     return Move(from, to, piece, taken_piece, move_flag);
+    #endif
 }
 
 std::uint64_t PackEntryData(const TTEntry& entry) {
@@ -54,7 +77,7 @@ void UnpackEntryData(std::uint64_t key, std::uint64_t data, TTEntry& entry) {
     entry.flag = static_cast<TTFlag>((data >> TT_FLAG_SHIFT) & 0x03);
 }
 
-}
+} // namespace
 
 bool ProbeTT(std::uint64_t key, TTEntry& entry) {
     TTSlot& slot = tt[key & (TT_SIZE - 1)];
