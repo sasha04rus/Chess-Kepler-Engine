@@ -207,7 +207,8 @@ void* Search(void* raw_args) {
             info.evaluation = reported_evaluation;
         for (int i = 0; i < result.pv.length; i++)
             info.pv.push_back(MoveToString(result.pv.moves[i]));
-        search_args->info_callback(info);
+        if (search_args->info_callback)
+            search_args->info_callback(info);
         if (result.pv.length == 0)
             break;
     }
@@ -217,7 +218,8 @@ void* Search(void* raw_args) {
         pthread_join(thread, nullptr);
     if (last_complete.valid && last_complete.pv.length > 0)
         bestmove = MoveToString(last_complete.pv.moves[0]);
-    search_args->best_move_callback(bestmove);
+    if (search_args->best_move_callback)
+        search_args->best_move_callback(bestmove);
     searching.store(false, std::memory_order_release);
     return nullptr;
 }
