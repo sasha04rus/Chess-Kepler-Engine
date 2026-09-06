@@ -17,7 +17,7 @@
 #include "../tt/tt.h"
 #include "../moves/to_string.h"
 #include "../movegen/generate_moves.h"
-#include "../../history/history.h"
+#include "../history/history.h"
 
 #if KEPLER_TAR
 #include "tar/minimax.h"
