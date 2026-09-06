@@ -76,6 +76,10 @@ Uci::Uci() {
 
     handlers_["go"] = [this](const std::vector<std::string>& args) {
         if (searching) return;
+        if (engine_.IsEmptyPosition()) {
+            std::cout << "empty position" << std::endl;
+            return;
+        }
         int move_time = 0;
         int depth = MAX_DEPTH;
         try {

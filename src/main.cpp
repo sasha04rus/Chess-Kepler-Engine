@@ -13,10 +13,9 @@ int main() {
         std::istringstream iss(line);
         std::vector<std::string> words;
         std::string word;
-        while (iss >> word) {
+        while (iss >> word)
             words.push_back(word);
-        }
-        uci.Execute(words, std::cout);
+        uci.Execute(words);
         if ((words.size() == 1) && words[0] == "quit")
             return 0;
     }

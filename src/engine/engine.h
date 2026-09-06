@@ -26,6 +26,7 @@ public:
     void Go(int mt, int depth);
     void Stop();
     void NewGame();
+    bool IsEmptyPosition() const;
     bool GetTurn() const;
     int GetPly() const;
     void SetInfoCallback(InfoCallback callback);

@@ -54,6 +54,10 @@ void Engine::NewGame() {
     ClearTT();
 }
 
+bool Engine::IsEmptyPosition() const {
+    return board_ptr_ == nullptr;
+}
+
 bool Engine::GetTurn() const {
     return board_ptr_->turn;
 }
