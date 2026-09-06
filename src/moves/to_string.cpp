@@ -42,7 +42,12 @@ const std::string MoveToString(const MoveTar& move) {
     std::string str;
     str += kBoard[move.from]; 
     str += kBoard[move.to];
-    if (move.set != 255)
+    if (move.flag == Flag::kCapture 
+        || move.flag == Flag::kTransformationToKnightWithCapture 
+        || move.flag == Flag::kTransformationToBishopWithCapture 
+        || move.flag == Flag::kTransformationToRookWithCapture 
+        || move.flag == Flag::kTransformationToQueenWithCapture 
+        || move.flag == Flag::kEnPassant)
         str += kBoard[move.set];
     switch ((int)move.flag) {
     case 2:

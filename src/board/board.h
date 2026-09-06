@@ -47,7 +47,7 @@ struct Board {
     int EvaluatePosition() const;
     int EvaluateTarPosition() const;
 
-    void MakeMove(const std::string& str, Variant variant);
+    void MakeMove(const std::string& str);
 
     void MakeMove(const Move& move);
     void SetPiece(std::uint8_t piece, std::uint8_t square);

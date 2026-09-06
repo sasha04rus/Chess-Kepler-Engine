@@ -107,7 +107,7 @@ Board::Board(const std::string fen) : turn(true), en_passant(0) {
         if (fen_cstr[0] >= 'a' && fen_cstr[0] <= 'h' &&
             fen_cstr[1] >= '1' && fen_cstr[1] <= '8') {
             
-            int file = fen_cstr[0] - 'a';      
+            int file = 'h' - fen_cstr[0];      
             int rank = fen_cstr[1] - '1';        
             en_passant = rank * 8 + file;
         }
@@ -242,6 +242,8 @@ void Board::MakeMove(const Move& move) {
             rotated.rotate45 ^= movegen::map_to_rotate45[move.to];
             rotated.rotate315 ^= movegen::map_to_rotate315[move.to];
             pieces[move.to] = 0;
+            if (en_passant != 0)
+                zobrist_hash ^= zobrist::en_passant[zobrist::ep_square_to_index[en_passant]];
             if (turn) 
                 en_passant = move.from + 8;    
             else
@@ -341,10 +343,10 @@ void Board::MakeMove(const Move& move) {
             rotated.rotate45 ^= movegen::map_to_rotate45[2];
             rotated.rotate315 ^= movegen::map_to_rotate315[2];
             pieces[2] = 3;
+            if (castling[0]) zobrist_hash ^= zobrist::castling[0];
+            if (castling[1]) zobrist_hash ^= zobrist::castling[1];
             castling[0] = false;
             castling[1] = false;
-            zobrist_hash ^= zobrist::castling[0];
-            zobrist_hash ^= zobrist::castling[1];
             last_irreversible = ply;
             break;
         case Flag::kLongWhiteCastling: 
@@ -368,10 +370,10 @@ void Board::MakeMove(const Move& move) {
             rotated.rotate45 ^= movegen::map_to_rotate45[5];
             rotated.rotate315 ^= movegen::map_to_rotate315[5];
             pieces[4] = 3;
+            if (castling[0]) zobrist_hash ^= zobrist::castling[0];
+            if (castling[1]) zobrist_hash ^= zobrist::castling[1];
             castling[0] = false;
             castling[1] = false;
-            zobrist_hash ^= zobrist::castling[0];
-            zobrist_hash ^= zobrist::castling[1];
             last_irreversible = ply;
             break;
         case Flag::kShortBlackCastling: 
@@ -395,10 +397,10 @@ void Board::MakeMove(const Move& move) {
             rotated.rotate45 ^= movegen::map_to_rotate45[58];
             rotated.rotate315 ^= movegen::map_to_rotate315[58];
             pieces[58] = 3;
+            if (castling[2]) zobrist_hash ^= zobrist::castling[2];
+            if (castling[3]) zobrist_hash ^= zobrist::castling[3];
             castling[2] = false;
             castling[3] = false;
-            zobrist_hash ^= zobrist::castling[2];
-            zobrist_hash ^= zobrist::castling[3];
             last_irreversible = ply;
             break;
         case Flag::kLongBlackCastling: 
@@ -422,10 +424,10 @@ void Board::MakeMove(const Move& move) {
             rotated.rotate45 ^= movegen::map_to_rotate45[63];
             rotated.rotate315 ^= movegen::map_to_rotate315[63];
             pieces[60] = 3;
+            if (castling[2]) zobrist_hash ^= zobrist::castling[2];
+            if (castling[3]) zobrist_hash ^= zobrist::castling[3];
             castling[2] = false;
             castling[3] = false;
-            zobrist_hash ^= zobrist::castling[2];
-            zobrist_hash ^= zobrist::castling[3];
             last_irreversible = ply;
             break;
         case Flag::kCapture: 
@@ -463,7 +465,7 @@ void Board::MakeMove(const Move& move) {
     zobrist_hash ^= zobrist::turn;
 }
 
-void Board::MakeMove(const std::string& str, Variant variant) {
+void Board::MakeMove(const std::string& str) {
     std::string from_str = str.substr(0, 2);
     std::string to_str = str.substr(2, 2);
     Move move;
@@ -509,24 +511,19 @@ void Board::MakeMove(const std::string& str, Variant variant) {
         }
     }
     
-    switch (variant) {
-    case Variant::kStandard:
+    #if KEPLER_TAR
         this->MakeMove(move);
-        break;
-    case Variant::kTakeAndReturn: 
-        this->MakeMove(move);
-        // if (IsReversible(move))
-        //     last_irreversible = st[ply-1].last_irreversible;
+        if (IsReversible(move))
+            last_irreversible = st[ply-1].last_irreversible;
         if (str.length() > 5) {
             std::string set_str = str.substr(4, 2);
             for (int i = 0; i < 64; i++)
                 if (kBoard[i] == set_str)
                     this->SetPiece(move.taken_piece, i);
         }
-        break;
-    default:
-        break;
-    }
+    #else
+        this->MakeMove(move);
+    #endif
 }
 
 void Board::UnMakeMove(const Move& move) {
@@ -701,11 +698,22 @@ void Board::UnMakeNullMove(std::uint8_t saved_en_passant) {
 }
 
 void Board::SetPiece(std::uint8_t piece, std::uint8_t square) {
-    bitboards[!turn][piece] |= ((uint64_t)1 << square);
+    const Bitboard bit = 1ULL << square;
+    bitboards[!turn][piece] |= bit;
+    pieces[square] = piece;
+    rotated.occupied |= bit;
+    rotated.rotate90 |= movegen::map_to_rotate90[square];
+    rotated.rotate45 |= movegen::map_to_rotate45[square];
+    rotated.rotate315 |= movegen::map_to_rotate315[square];
     zobrist_hash ^= zobrist::piece[!turn][piece][square];
 }
 
 void Board::UnSetPiece(std::uint8_t piece, std::uint8_t square) {
-    bitboards[!turn][piece] &= ~((uint64_t)1 << square);
+    const Bitboard bit = 1ULL << square;
+    bitboards[!turn][piece] &= ~bit;
+    rotated.occupied &= ~bit;
+    rotated.rotate90 &= ~movegen::map_to_rotate90[square];
+    rotated.rotate45 &= ~movegen::map_to_rotate45[square];
+    rotated.rotate315 &= ~movegen::map_to_rotate315[square];
     zobrist_hash ^= zobrist::piece[!turn][piece][square];
 }
