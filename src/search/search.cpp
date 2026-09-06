@@ -195,12 +195,12 @@ void* Search(void* raw_args) {
         std::uint64_t total_nodes = shared.nodes.load(std::memory_order_relaxed);
         std::uint64_t nps = (elapsed_ms > 0) ? (total_nodes * 1000ULL / elapsed_ms) : (total_nodes * 1000ULL);
         const int reported_evaluation = root_board.turn ? result.evaluation : -result.evaluation;
-        info.depth = depth
+        info.depth = depth;
         info.time = elapsed_ms;
         info.nodes = total_nodes;
         info.nps = nps;
         if (reported_evaluation > MATE_THRESHOLD)
-            info.mate_in =  = (MATE_VALUE - reported_evaluation + 1) / 2;
+            info.mate_in = (MATE_VALUE - reported_evaluation + 1) / 2;
         else if (reported_evaluation < -MATE_THRESHOLD)
             info.mate_in = -(MATE_VALUE + reported_evaluation + 1) / 2;
         else
