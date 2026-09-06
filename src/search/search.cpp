@@ -18,9 +18,12 @@
 #include "../moves/to_string.h"
 #include "../movegen/generate_moves.h"
 #include "../../history/history.h"
-#include "standard/minimax.h"
-#include "tar/minimax.h"
 
+#if KEPLER_TAR
+#include "tar/minimax.h"
+#else
+#include "standard/minimax.h"
+#endif
 #define INFINITY 15000
 
 struct timespec start_time;
@@ -163,6 +166,9 @@ void* Search(void* raw_args) {
 
     ClearKiller();
     ClearHistory();
+    #if KEPLER_TAR
+    set_history::ClearSetHistory();
+    #endif
     SearchResult<MoveType> last_complete;
     for (int depth = 1; depth <= search_args->max_depth; depth++) {
         if (IsInterrupted())
@@ -173,33 +179,37 @@ void* Search(void* raw_args) {
         shared.nodes.fetch_add(result.nodes, std::memory_order_relaxed);
         if (!result.valid)
             break;
-        PrincipalVariation<MoveType> tt_pv = ExtractPvFromTT<MoveType>(root_board, depth);
-        if (result.pv.length == 0) {
-            result.pv = tt_pv;
-        } else if (tt_pv.length > result.pv.length && tt_pv.moves[0] == result.pv.moves[0])
-            result.pv = tt_pv;
-        if (result.pv.length == 0)
-            continue;
+        // PrincipalVariation<MoveType> tt_pv = ExtractPvFromTT<MoveType>(root_board, depth);
+        // if (result.pv.length == 0) {
+        //     result.pv = tt_pv;
+        // } else if (tt_pv.length > result.pv.length && tt_pv.moves[0] == result.pv.moves[0])
+        //     result.pv = tt_pv;
+        // if (result.pv.length == 0)
+        //     continue;
 
         last_complete = result;
 
-        bestmove = MoveToString(result.pv.moves[0]);
+        bestmove = result.pv.length > 0 ? MoveToString(result.pv.moves[0]) : "0000";
+        SearchInfo info;
         std::uint64_t elapsed_ms = GetElapsedMilliseconds();
         std::uint64_t total_nodes = shared.nodes.load(std::memory_order_relaxed);
         std::uint64_t nps = (elapsed_ms > 0) ? (total_nodes * 1000ULL / elapsed_ms) : (total_nodes * 1000ULL);
-
-        if (result.evaluation > MATE_THRESHOLD) {
-            int mate_in = (MATE_VALUE - result.evaluation + 1) / 2;
-            std::cout << "info depth " << depth << " score mate " << mate_in << " time " << elapsed_ms << " nodes " << total_nodes << " nps " << nps << " pv ";
-        } else if (result.evaluation < -MATE_THRESHOLD) {
-            int mate_in = (MATE_VALUE + result.evaluation + 1) / 2;
-            std::cout << "info depth " << depth << " score mate " << mate_in << " time " << elapsed_ms << " nodes " << total_nodes << " nps " << nps << " pv ";
-        } else
-            std::cout << "info depth " << depth << " score cp " << result.evaluation << " time " << elapsed_ms << " nodes " << total_nodes << " nps " << nps << " pv ";
-                
+        const int reported_evaluation = root_board.turn ? result.evaluation : -result.evaluation;
+        info.depth = depth
+        info.time = elapsed_ms;
+        info.nodes = total_nodes;
+        info.nps = nps;
+        if (reported_evaluation > MATE_THRESHOLD)
+            info.mate_in =  = (MATE_VALUE - reported_evaluation + 1) / 2;
+        else if (reported_evaluation < -MATE_THRESHOLD)
+            info.mate_in = -(MATE_VALUE + reported_evaluation + 1) / 2;
+        else
+            info.evaluation = reported_evaluation;
         for (int i = 0; i < result.pv.length; i++)
-            std::cout << MoveToString(result.pv.moves[i]) << ' ';
-        std::cout << std::endl;
+            info.pv.push_back(MoveToString(result.pv.moves[i]));
+        search_args->info_callback(info);
+        if (result.pv.length == 0)
+            break;
     }
 
     shared.finish.store(true, std::memory_order_release);
@@ -207,10 +217,13 @@ void* Search(void* raw_args) {
         pthread_join(thread, nullptr);
     if (last_complete.valid && last_complete.pv.length > 0)
         bestmove = MoveToString(last_complete.pv.moves[0]);
-    std::cout << "bestmove " << bestmove << std::endl;
+    search_args->best_move_callback(bestmove);
     searching.store(false, std::memory_order_release);
     return nullptr;
 }
 
+#if KEPLER_TAR
+template void* Search<MoveTar>(void*);
+#else
 template void* Search<Move>(void*);
-// template void* Search<MoveTar>(void*);
+#endif

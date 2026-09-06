@@ -11,6 +11,21 @@
 static const std::string kStartPosFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
 Uci::Uci() {
+    engine_.SetInfoCallback([](const SearchInfo& info) {
+        std::cout << "info depth " << info.depth << " score ";
+        if (info.mate_in != 0)
+            std::cout << " mate " << info.mate_in;
+        else std::cout << " cp " << info.evaluation;
+        std::cout << " time " << info.time << " nodes " << info.nodes << " nps " << info.nps << " pv ";
+        for (const auto& move : info.pv)
+            std::cout << move << ' ';
+        std::cout << std::endl;
+    });
+
+    engine_.SetBestMoveCallback([](const std::string& move) {
+        std::cout << "bestmove " << move << std::endl;
+    });
+
     handlers_["uci"] = [](const std::vector<std::string>& args, std::ostream& out) {
         if (!args.empty()) return;
         out << "id name Kepler-Engine v0\nid author Sasha Tastakov\n"
@@ -25,10 +40,10 @@ Uci::Uci() {
         out << "readyok" << std::endl;
     };
 
-    handlers_["ucinewgame"] = [](const std::vector<std::string>& args, std::ostream& out) {
+    handlers_["ucinewgame"] = [this](const std::vector<std::string>& args, std::ostream& out) {
         if (!args.empty())
             return;
-        ClearTT();
+        engine_.NewGame();
     };
 
     handlers_["setoption"] = [this](const std::vector<std::string>& args, std::ostream& out) {
@@ -36,94 +51,57 @@ Uci::Uci() {
         if ((args[0] != "name") || (args[2] != "value")) return;
         try {
             if (args[1] == "MultiPV")
-                multi_pv_ = std::clamp(std::stoi(args[3]), 1, 218);
+                engine_.SetMultiPv(std::clamp(std::stoi(args[3]), 1, 218));
             else if (args[1] == "Threads")
-                threads_ = std::clamp(std::stoi(args[3]), 1, 64);
+                engine_.SetThreads(std::clamp(std::stoi(args[3]), 1, 64));
         } catch(...) { return; }
-    };
-
-    handlers_["variant"] = [this](const std::vector<std::string>& args, std::ostream& out) {
-        if (args[0] == "standard")
-            variant_ = Variant::kStandard;
-        else if (args[0] == "tar")
-            variant_ = Variant::kTakeAndReturn;
     };
     
     handlers_["position"] = [this](const std::vector<std::string>& args, std::ostream& out) {
         if (args.empty()) return;
-        if (searching) {
-            stop_signal = true;
-            pthread_join(search_thread_, nullptr);
-            searching = false;
-        }
-        board_ptr_.reset();
         std::size_t i = 1;
         if (args[0] == "startpos")
-            board_ptr_ = std::make_unique<Board>(kStartPosFen);
+            engine_.SetPosition(kStartPosFen);
         else if (args[0] == "fen") {
             if (args.size() < 7) return;
             std::string fen = args[1] + ' ' + args[2] + ' ' + args[3] + ' ' + args[4] + ' ' + args[5] + ' ' + args[6];
-            board_ptr_ = std::make_unique<Board>(fen);
+            engine_.SetPosition(fen);
             i = 7;
         } else return;
         if (i < args.size() && args[i++] == "moves") {
             for (; i < args.size(); i++) 
-                board_ptr_->MakeMove(args[i], variant_);
+                engine_.MakeMove(args[i]);
         }
     };
 
     handlers_["go"] = [this](const std::vector<std::string>& args, std::ostream& out) {
         if (searching) return;
-        if (!board_ptr_) {
-            out << "empty position";
-            return;
-        }
-        int search_depth = depth_;
         try {
             if (args.empty() || args[0] == "infinity") {
                 movetime = 0;
             } else if (args.size() == 2 && args[0] == "movetime") {
                 movetime = std::stoi(args[1]);
-            } else if (args.size() == 2 && args[0] == "depth") {
-                search_depth = std::stoi(args[1]);
             } else if (args.size() >= 4) {
                 if ((args[0] != "wtime") || (args[2] != "btime")) return;
                 int wtime = std::stoi(args[1]);
                 int btime = std::stoi(args[3]);
                 int winc = args.size() > 5 ? std::stoi(args[5]) : 0;
-                if (board_ptr_->turn)
-                    movetime = CalculateMoveTime(wtime, btime, winc, board_ptr_->ply);
-                else movetime = CalculateMoveTime(btime, wtime, winc, board_ptr_->ply);
+                if (engine_.GetTurn())
+                    movetime = CalculateMoveTime(wtime, btime, winc, engine_.GetPly());
+                else movetime = CalculateMoveTime(btime, wtime, winc, engine_.GetPly());
             } else return;
         } catch(...) { return; }
-        stop_signal = false;
-        searching = true;
-        clock_gettime(CLOCK_MONOTONIC, &start_time);
-        SearchArgs* sa = new SearchArgs{*board_ptr_, search_depth, threads_, multi_pv_};
-        if (variant_ == Variant::kStandard)
-            pthread_create(&search_thread_, nullptr, Search<Move>, sa);
-        else if (variant_ == Variant::kTakeAndReturn)
-            pthread_create(&search_thread_, nullptr, Search<Move>, sa);
+        engine_.Go();
     };
 
     handlers_["stop"] = [this](const std::vector<std::string>& args, std::ostream& out) {
         if (!args.empty()) return;
-        if (searching) {
-            stop_signal.store(true, std::memory_order_relaxed);
-            pthread_join(search_thread_, nullptr);
-            searching = false;
-        }
-        board_ptr_.reset();
+        engine_.Stop();
     };
 
     handlers_["quit"] = [this](const std::vector<std::string>& args, std::ostream& out) {
         if (!args.empty()) return;
-        if (searching) {
-            stop_signal = true;
-            pthread_join(search_thread_, nullptr);
-            searching = false;
-        }
-        board_ptr_.reset();
+        engine_.Stop();
     };
 }
 

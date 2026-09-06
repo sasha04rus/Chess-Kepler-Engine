@@ -8,6 +8,7 @@
 #include <thread>
 
 #include "../board/board.h"
+#include "../engine/engine.h"
 
 #define MAX_DEPTH 30
 #define DEFAULT_NUMBER_OF_THREADS 1
@@ -21,10 +22,5 @@ public:
     void Execute(const std::vector<std::string>& parsed_command, std::ostream& out);
 private:
     std::unordered_map<std::string, Handler> handlers_;
-    std::unique_ptr<Board> board_ptr_;
-    int depth_ = MAX_DEPTH;
-    int threads_ = DEFAULT_NUMBER_OF_THREADS;
-    int multi_pv_ = DEFAULT_MULTI_PV;
-    Variant variant_ = Variant::kStandard;
-    pthread_t search_thread_;
+    Engine engine_;
 };

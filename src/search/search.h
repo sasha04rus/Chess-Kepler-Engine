@@ -3,9 +3,11 @@
 #include <atomic>
 #include <cstdint>
 #include <string>
+#include <iostream>
 
 #include "../board/board.h"
 #include "../moves/pv.h"
+#include "../engine/engine_types.h"
 
 #define MATE_VALUE 14000
 #define MATE_THRESHOLD 13000  
@@ -21,6 +23,8 @@ struct SearchArgs {
     int max_depth;
     int threads;
     int multi_pv;
+    InfoCallback info_callback;
+    BestMoveCallback best_move_callback;
 };
 
 template <typename MoveType>
