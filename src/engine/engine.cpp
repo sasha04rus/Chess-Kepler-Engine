@@ -29,11 +29,12 @@ void Engine::SetMultiPv(int multi_pv) {
     multi_pv_ = multi_pv;
 }
 
-void Engine::Go() {
+void Engine::Go(int mt, int depth) {
+    movetime = mt;
     stop_signal = false;
     searching = true;
     clock_gettime(CLOCK_MONOTONIC, &start_time);
-    SearchArgs* sa = new SearchArgs{*board_ptr_, depth_, threads_, multi_pv_, info_callback_, best_move_callback_};
+    SearchArgs* sa = new SearchArgs{*board_ptr_, depth, threads_, multi_pv_, info_callback_, best_move_callback_};
     #if KEPLER_TAR
         pthread_create(&search_thread_, nullptr, Search<MoveTar>, sa);
     #else
@@ -47,7 +48,6 @@ void Engine::Stop() {
         pthread_join(search_thread_, nullptr);
         searching = false;
     }
-    board_ptr_.reset();
 }
 
 void Engine::NewGame() {

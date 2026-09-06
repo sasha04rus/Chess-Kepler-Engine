@@ -23,7 +23,7 @@ public:
     void MakeMove(const std::string& move);
     void SetThreads(int threads);
     void SetMultiPv(int multi_pv);
-    void Go();
+    void Go(int mt, int depth);
     void Stop();
     void NewGame();
     bool GetTurn();
@@ -32,7 +32,6 @@ public:
     void SetBestMoveCallback(BestMoveCallback callback);
 private:
     std::unique_ptr<Board> board_ptr_;
-    int depth_ = MAX_DEPTH;
     int threads_ = DEFAULT_NUMBER_OF_THREADS;
     int multi_pv_ = DEFAULT_MULTI_PV;
     pthread_t search_thread_;

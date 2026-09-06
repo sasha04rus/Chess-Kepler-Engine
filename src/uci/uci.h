@@ -3,23 +3,18 @@
 #include <unordered_map>
 #include <functional>
 #include <string>
-#include <iostream>
 #include <memory>
 #include <thread>
 
 #include "../board/board.h"
 #include "../engine/engine.h"
 
-#define MAX_DEPTH 30
-#define DEFAULT_NUMBER_OF_THREADS 1
-#define DEFAULT_MULTI_PV 1
-
 class Uci {
 public:
-    using Handler = std::function<void(const std::vector<std::string>&, std::ostream&)>;
+    using Handler = std::function<void(const std::vector<std::string>&)>;
     Uci();
 
-    void Execute(const std::vector<std::string>& parsed_command, std::ostream& out);
+    void Execute(const std::vector<std::string>& parsed_command);
 private:
     std::unordered_map<std::string, Handler> handlers_;
     Engine engine_;

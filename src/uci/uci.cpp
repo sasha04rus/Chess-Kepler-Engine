@@ -26,27 +26,27 @@ Uci::Uci() {
         std::cout << "bestmove " << move << std::endl;
     });
 
-    handlers_["uci"] = [](const std::vector<std::string>& args, std::ostream& out) {
+    handlers_["uci"] = [](const std::vector<std::string>& args) {
         if (!args.empty()) return;
-        out << "id name Kepler-Engine v0\nid author Sasha Tastakov\n"
+        std::cout << "id name Kepler-Engine v0\nid author Sasha Tastakov\n"
             << "option name MultiPV type spin default 1 min 1 max 218\n"
             << "option name Threads type spin default 1 min 1 max 64\n"
             << "uciok"
             << std::endl;
     };
 
-    handlers_["isready"] = [](const std::vector<std::string>& args, std::ostream& out) {
+    handlers_["isready"] = [](const std::vector<std::string>& args) {
         if (!args.empty()) return;
-        out << "readyok" << std::endl;
+        std::cout << "readyok" << std::endl;
     };
 
-    handlers_["ucinewgame"] = [this](const std::vector<std::string>& args, std::ostream& out) {
+    handlers_["ucinewgame"] = [this](const std::vector<std::string>& args) {
         if (!args.empty())
             return;
         engine_.NewGame();
     };
 
-    handlers_["setoption"] = [this](const std::vector<std::string>& args, std::ostream& out) {
+    handlers_["setoption"] = [this](const std::vector<std::string>& args) {
         if (args.size() != 4) return;
         if ((args[0] != "name") || (args[2] != "value")) return;
         try {
@@ -57,7 +57,7 @@ Uci::Uci() {
         } catch(...) { return; }
     };
     
-    handlers_["position"] = [this](const std::vector<std::string>& args, std::ostream& out) {
+    handlers_["position"] = [this](const std::vector<std::string>& args) {
         if (args.empty()) return;
         std::size_t i = 1;
         if (args[0] == "startpos")
@@ -74,40 +74,44 @@ Uci::Uci() {
         }
     };
 
-    handlers_["go"] = [this](const std::vector<std::string>& args, std::ostream& out) {
+    handlers_["go"] = [this](const std::vector<std::string>& args) {
         if (searching) return;
+        int move_time = 0;
+        int depth = MAX_DEPTH;
         try {
             if (args.empty() || args[0] == "infinity") {
-                movetime = 0;
+                move_time = 0;
             } else if (args.size() == 2 && args[0] == "movetime") {
-                movetime = std::stoi(args[1]);
+                move_time = std::stoi(args[1]);
+            } else if (args.size() == 2 && args[0] == "depth") {
+                depth = std::stoi(args[1]);
             } else if (args.size() >= 4) {
                 if ((args[0] != "wtime") || (args[2] != "btime")) return;
                 int wtime = std::stoi(args[1]);
                 int btime = std::stoi(args[3]);
                 int winc = args.size() > 5 ? std::stoi(args[5]) : 0;
                 if (engine_.GetTurn())
-                    movetime = CalculateMoveTime(wtime, btime, winc, engine_.GetPly());
-                else movetime = CalculateMoveTime(btime, wtime, winc, engine_.GetPly());
+                    move_time = CalculateMoveTime(wtime, btime, winc, engine_.GetPly());
+                else move_time = CalculateMoveTime(btime, wtime, winc, engine_.GetPly());
             } else return;
         } catch(...) { return; }
-        engine_.Go();
+        engine_.Go(move_time, depth);
     };
 
-    handlers_["stop"] = [this](const std::vector<std::string>& args, std::ostream& out) {
+    handlers_["stop"] = [this](const std::vector<std::string>& args) {
         if (!args.empty()) return;
         engine_.Stop();
     };
 
-    handlers_["quit"] = [this](const std::vector<std::string>& args, std::ostream& out) {
+    handlers_["quit"] = [this](const std::vector<std::string>& args) {
         if (!args.empty()) return;
         engine_.Stop();
     };
 }
 
-void Uci::Execute(const std::vector<std::string>& parsed_command, std::ostream& out) {
+void Uci::Execute(const std::vector<std::string>& parsed_command) {
     if (parsed_command.empty()) return;
     auto it = handlers_.find(parsed_command[0]);
     if (it == handlers_.end()) return;
-    it->second(std::vector<std::string>(parsed_command.begin() + 1, parsed_command.end()), out);
+    it->second(std::vector<std::string>(parsed_command.begin() + 1, parsed_command.end()));
 }
