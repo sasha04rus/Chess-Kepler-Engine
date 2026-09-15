@@ -18,6 +18,9 @@ struct Move {
     bool operator==(const Move& other_move) {
         return from == other_move.from && to == other_move.to && piece == other_move.piece; 
     }
+    bool operator==(const Move& other_move) const {
+        return from == other_move.from && to == other_move.to && piece == other_move.piece; 
+    }
     int Different() const { return kTakenPrice[taken_piece] - piece; }
 };
 
