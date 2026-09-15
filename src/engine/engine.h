@@ -29,6 +29,10 @@ public:
     bool IsEmptyPosition() const;
     bool GetTurn() const;
     int GetPly() const;
+    bool IsCheck() const;
+    std::vector<std::string> GetLegalMoves() const;
+    std::string GetPosition() const;
+    std::string GetResult() const;
     void SetInfoCallback(InfoCallback callback);
     void SetBestMoveCallback(BestMoveCallback callback);
 private:
