@@ -483,8 +483,8 @@ void Board::MakeMove(const std::string& str) {
     else if ((move.from == 3)&&(move.to == 5)&&(move.piece == 5)) move.flag = Flag::kLongWhiteCastling;
     else if ((move.from == 59)&&(move.to == 57)&&(move.piece == 5)) move.flag = Flag::kShortBlackCastling;
     else if ((move.from == 59)&&(move.to == 61)&&(move.piece == 5)) move.flag = Flag::kLongBlackCastling;
-    else if ( str.length() - 1)
-        switch (str.back()) {
+    else if (str.length() == 5 || str.length() == 7)
+        switch (str[4]) {
         case 'n':
             move.flag = Flag::kTransformationToKnight;
             break;
@@ -515,8 +515,9 @@ void Board::MakeMove(const std::string& str) {
         this->MakeMove(move);
         if (IsReversible(move))
             last_irreversible = st[ply-1].last_irreversible;
-        if (str.length() > 5) {
-            std::string set_str = str.substr(4, 2);
+        if (str.length() == 6 || str.length() == 7) {
+            const std::size_t return_square_offset = str.length() == 7 ? 5 : 4;
+            std::string set_str = str.substr(return_square_offset, 2);
             for (int i = 0; i < 64; i++)
                 if (kBoard[i] == set_str)
                     this->SetPiece(move.taken_piece, i);

@@ -42,13 +42,6 @@ const std::string MoveToString(const MoveTar& move) {
     std::string str;
     str += kBoard[move.from]; 
     str += kBoard[move.to];
-    if (move.flag == Flag::kCapture 
-        || move.flag == Flag::kTransformationToKnightWithCapture 
-        || move.flag == Flag::kTransformationToBishopWithCapture 
-        || move.flag == Flag::kTransformationToRookWithCapture 
-        || move.flag == Flag::kTransformationToQueenWithCapture 
-        || move.flag == Flag::kEnPassant)
-        str += kBoard[move.set];
     switch ((int)move.flag) {
     case 2:
     case 6:
@@ -69,5 +62,12 @@ const std::string MoveToString(const MoveTar& move) {
     default:
         break;
     }
+    if (move.flag == Flag::kCapture 
+        || move.flag == Flag::kTransformationToKnightWithCapture 
+        || move.flag == Flag::kTransformationToBishopWithCapture 
+        || move.flag == Flag::kTransformationToRookWithCapture 
+        || move.flag == Flag::kTransformationToQueenWithCapture 
+        || move.flag == Flag::kEnPassant)
+        str += kBoard[move.set];
     return str;
 }
