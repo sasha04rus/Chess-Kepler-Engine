@@ -1,0 +1,49 @@
+# CMake build directories created in the repository root
+/build/
+/build-*/
+
+# CMake/Ninja files if an in-source build is started accidentally
+/CMakeFiles/
+/CMakeCache.txt
+/cmake_install.cmake
+/CTestTestfile.cmake
+/Makefile
+/build.ninja
+/.ninja_*
+/compile_commands.json
+/Testing/
+/_deps/
+
+# Generated release packages
+/dist/
+
+# Android/Gradle build state
+**/.gradle/
+**/build/
+**/.cxx/
+**/local.properties
+*.apk
+*.aab
+
+# Native compiler output
+*.o
+*.obj
+*.a
+*.so
+*.dll
+*.dylib
+*.exe
+
+# Profiling output
+/perf.data
+/perf.data.old
+
+# Old locally built engine executables
+/ChessKepler-*
+
+# IDE and operating-system files
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
