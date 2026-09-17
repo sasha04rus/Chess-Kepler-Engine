@@ -108,7 +108,7 @@ std::vector<std::string> Engine::GetLegalMoves() const {
                         board_ptr_->UnSetPiece(move.taken_piece, cell);
                     }
                 }
-            } else if (board_ptr_->LegalTest(!board_ptr_->turn))
+            } else if (board_ptr_->LegalTest(board_ptr_->turn))
                 moves.push_back(MoveToString(move));
             board_ptr_->UnMakeMove(move);
         }
@@ -116,7 +116,7 @@ std::vector<std::string> Engine::GetLegalMoves() const {
         for (int i = 0; i < move_count; i++) {
             const auto& move = possible_moves[i];
             board_ptr_->MakeMove(move);
-            if (board_ptr_->LegalTest(!board_ptr_->turn))
+            if (board_ptr_->LegalTest(board_ptr_->turn))
                 moves.push_back(MoveToString(move));
             board_ptr_->UnMakeMove(move);
         }
