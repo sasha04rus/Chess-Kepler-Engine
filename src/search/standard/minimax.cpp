@@ -1,7 +1,8 @@
 #include "minimax.h"
 
-#include <cstring>
 #include <algorithm>
+#include <array>
+#include <cstring>
 
 #include "../../board/board.h"
 #include "../../tt/tt.h"
@@ -9,6 +10,7 @@
 #include "../../movegen/generate_moves.h"
 #include "../../eval/standard/evaluate_position.h"
 #include "../../history/history.h"
+#include "../see.h"
 #include "../search.h"
 
 namespace {
@@ -40,7 +42,6 @@ bool IsPromotion(const Move& move) {
         case Flag::kTransformationToRookWithCapture:
         case Flag::kTransformationToQueenWithCapture:
             return true;
-
         default:
             return false;
     }
@@ -86,10 +87,15 @@ int ScoreFromTT(int score, int ply) {
     return score;
 }
 
-int MoveScore(const Move& move, const Move* tt_move, int ply, int side) {
+int MoveScore(const Board& board, const Move& move, const Move* tt_move, int ply, int side) {
     if (tt_move != nullptr && move == *tt_move)
         return 1000000;
-    if (IsCapture(move)) { return 800000 + move.Different(); }
+    if (IsCapture(move)) {
+        const int see = See(board, move);
+        if (see >= 0)
+            return 800'000 + see;
+        return -100'000 + see;
+    }
     if (ply < MAX_SEARCH_PLY) {
         if (move == killers[ply][0])
             return 700'000;
@@ -99,10 +105,27 @@ int MoveScore(const Move& move, const Move* tt_move, int ply, int side) {
     return GetHistoryScore(side, move);
 }
 
-void MoveSort(Move moves[MAX_MOVES], int count, const Move* tt_move, int ply, int side) {
-    std::stable_sort(moves, moves + count, [&](const Move& left,const Move& right) {
-        return MoveScore(left, tt_move, ply, side) > MoveScore(right, tt_move, ply, side);
-    });
+struct ScoredMove {
+    Move move;
+    int score = 0;
+};
+
+void MoveSort(const Board& board, Move moves[MAX_MOVES], int count, const Move* tt_move, int ply,
+              int side) {
+    std::array<ScoredMove, MAX_MOVES> scored_moves;
+    for (int i = 0; i < count; i++) {
+        const int score = MoveScore(board, moves[i], tt_move, ply, side);
+        scored_moves[i] = {moves[i], score};
+    }
+
+    std::stable_sort(scored_moves.begin(), scored_moves.begin() + count,
+        [](const ScoredMove& left, const ScoredMove& right) {
+            return left.score > right.score;
+        });
+
+    for (int i = 0; i < count; i++) {
+        moves[i] = scored_moves[i].move;
+    }
 }
 
 int MinimaxCap(Board& board, int alpha, int beta, std::uint64_t& nodes, int ply) {
@@ -131,17 +154,29 @@ int MinimaxCap(Board& board, int alpha, int beta, std::uint64_t& nodes, int ply)
     Move possible_moves[MAX_MOVES];
     int move_count = movegen::GenerateMoves(board, possible_moves, !in_check);
     if (in_check) {
-        Move* good_end = std::partition(possible_moves, possible_moves + move_count, IsCapture);
-        std::sort(possible_moves, good_end, [](const Move& a, const Move& b) {
-            return a.Different() > b.Different();
+        Move* capture_end = std::partition(possible_moves, possible_moves + move_count, IsCapture);
+        std::sort(possible_moves, capture_end, [](const Move& left, const Move& right) {
+            return left.Different() > right.Different();
         });
-    } else std::sort(possible_moves, possible_moves + move_count, [](const Move& a, const Move& b) {
-        return a.Different() > b.Different();
-    });
+    } else {
+        std::sort(possible_moves, possible_moves + move_count,
+            [](const Move& left, const Move& right) {
+                return left.Different() > right.Different();
+            });
+    }
     bool possibility = false;
     for (int i = 0; i < move_count; i++) {
+        const int see = (!in_check && IsCapture(possible_moves[i]))
+            ? See(board, possible_moves[i])
+            : 0;
         board.MakeMove(possible_moves[i]);
         if (!board.LegalTest(board.turn)) {
+            board.UnMakeMove(possible_moves[i]);
+            continue;
+        }
+        const bool gives_check = !board.LegalTest(!board.turn);
+        if (!in_check && IsCapture(possible_moves[i]) && !IsPromotion(possible_moves[i])
+            && see < 0 && !gives_check) {
             board.UnMakeMove(possible_moves[i]);
             continue;
         }
@@ -224,9 +259,9 @@ int Minimax(Board& board, int depth, int alpha, int beta, PrincipalVariation<Mov
     int legal_moves = 0;
     const int side = board.turn ? 0 : 1;
     if (tt_hit && !(entry.best_move == NO_MOVE))
-        MoveSort(possible_moves, move_count, &entry.best_move, ply, side);
+        MoveSort(board, possible_moves, move_count, &entry.best_move, ply, side);
     else
-        MoveSort(possible_moves, move_count, nullptr, ply, side);
+        MoveSort(board, possible_moves, move_count, nullptr, ply, side);
     bool pv_search = true;
     PrincipalVariation<Move> best_pv;
     Move best_move = NO_MOVE;
